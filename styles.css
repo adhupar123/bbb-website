@@ -1,0 +1,15 @@
+:root{
+  --bg:#f6f7fb; --card:#fff; --accent:#0b5fff; --muted:#263238;
+}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;background:var(--bg);color:var(--muted)}
+.container{max-width:1000px;margin:0 auto;padding:20px}
+.navwrap{background:linear-gradient(90deg,#0b5fff15,#0b5fff06);padding:14px;border-bottom:1px solid #e6ecff}
+.brand h1{margin:0;color:#062a7c}
+.muted{color:#6b7280;font-size:13px}
+.mainnav a{margin-left:12px;color:var(--accent);text-decoration:none;font-weight:600}
+.card{background:var(--card);padding:18px;border-radius:10px;box-shadow:0 8px 20px rgba(12,18,45,0.04);margin-top:18px}
+.lead{color:#334155}
+.btn{display:inline-block;padding:10px 14px;border-radius:10px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700}
+.btn.ghost{background:transparent;color:var(--accent);border:2px solid var(--accent)}
+.footer{padding:20px;text-align:center;color:#889;margin-top:28px}
