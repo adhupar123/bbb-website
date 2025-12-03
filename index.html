@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BBB Transport — Computational Modeling</title>
+  <title>BBB Transport — Project Showcase</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -11,38 +11,56 @@
     <div class="container topbar">
       <div class="brand">
         <h1>BBB Transport — Computational Modeling</h1>
-        <div class="muted">Interactive simulation + poster</div>
+        <div class="muted">Exploratory analysis, modeling, and interactive visualizations</div>
       </div>
 
       <nav class="mainnav">
         <a href="index.html">Home</a>
+        <a href="about.html">About / Methods</a>
+        <a href="viz.html">Interactive Visuals</a>
         <a href="simulate.html">Simulator</a>
-        <a href="Quant2%20Final%20Poster.pdf" target="_blank">Poster (PDF)</a>
-        <a href="Final%20Project%20(1).ipynb" target="_blank">Notebook</a>
+        <a href="https://github.com/adhupar123/BBB.github.io/blob/fab9de969456f1328c4d44f978e86b46c6aaebbc/Quant2%20Final%20Poster.pdf" target="_blank">Poster (PDF)</a>
+        <a href="https://github.com/adhupar123/BBB.github.io/blob/fab9de969456f1328c4d44f978e86b46c6aaebbc/Final%20Project%20(1).ipynb" target="_blank">Notebook</a>
       </nav>
     </div>
   </header>
 
   <main class="container hero">
     <section class="card">
-      <h2>Welcome</h2>
-      <p class="lead">This site accompanies our BBB transport project. Use the simulator to explore how particle radius, LogBB, and charge affect barrier crossing in a simple visual model.</p>
-      <p><a class="btn" href="simulate.html">Open Simulator</a>
-         <a class="btn ghost" href="Quant2%20Final%20Poster.pdf" target="_blank">Open Poster</a></p>
+      <h2>Project highlights</h2>
+      <p class="lead">This project analyzes molecular descriptors to predict blood–brain barrier (BBB) permeability. The site blends the original notebook's findings with interactive charts and a visual simulator for an educational exploration.</p>
+      <div class="grid">
+        <div class="tile">
+          <h3>Interactive Visuals</h3>
+          <p>Plots derived from the notebook: regression coefficients, scatter plots, and sample ECDFs. Try different descriptors and inspect sample molecules.</p>
+          <p><a class="btn" href="viz.html">Open Visuals</a></p>
+        </div>
+        <div class="tile">
+          <h3>Simulator</h3>
+          <p>A simple particle-based visual model of transport across a barrier (radius, LogBB, and charge controls).</p>
+          <p><a class="btn" href="simulate.html">Open Simulator</a></p>
+        </div>
+        <div class="tile">
+          <h3>Poster & Notebook</h3>
+          <p>Open the full poster and the Jupyter notebook used for analysis (hosted in your BBB.github.io repo).</p>
+          <p><a class="btn ghost" href="https://github.com/adhupar123/BBB.github.io/blob/fab9de969456f1328c4d44f978e86b46c6aaebbc/Quant2%20Final%20Poster.pdf" target="_blank">Poster</a>
+             <a class="btn ghost" href="https://github.com/adhupar123/BBB.github.io/blob/fab9de969456f1328c4d44f978e86b46c6aaebbc/Final%20Project%20(1).ipynb" target="_blank">Notebook</a></p>
+        </div>
+      </div>
     </section>
 
     <section class="card">
-      <h3>Notes</h3>
+      <h3>Quick takeaways</h3>
       <ul>
-        <li>The simulator is intentionally simple and educational.</li>
-        <li>For higher-fidelity modeling, we use stochastic simulations + ML offline.</li>
+        <li>Simple regression and classification can reveal relationships between molecular descriptors and BBB penetration.</li>
+        <li>MolLogP, TPSA, and molecular weight are important descriptors; coefficients and correlations are shown in the Visuals page.</li>
       </ul>
     </section>
   </main>
 
   <footer class="footer">
     <div class="container">
-      <small>© 2025 Alex — Computational Modeling of BBB transport</small>
+      <small>© 2025 Alex — BBB transport project</small>
     </div>
   </footer>
 </body>
