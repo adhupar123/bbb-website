@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>About — Methods & Data</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="navwrap"><div class="container topbar"><div class="brand"><h1>About — Methods</h1><div class="muted">Data sources and modeling approach</div></div>
+  <nav class="mainnav"><a href="index.html">Home</a><a href="viz.html">Visuals</a><a href="simulate.html">Simulator</a></nav></div></header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Dataset</h2>
+      <p>The analysis uses a curated dataset of molecules with experimental LogBB values. Molecular descriptors were computed with RDKit (MolLogP, MolWt, TPSA, formal charge, aromatic rings, heavy atom count).</p>
+    </section>
+
+    <section class="card">
+      <h2>Modeling summary</h2>
+      <p>From the notebook: a multiple linear regression was fitted to predict logBB. Example fitted coefficients (from the notebook):</p>
+      <ul>
+        <li>Intercept: 0.2422</li>
+        <li>MolLogP: 0.0052</li>
+        <li>MolWt: -0.0012</li>
+        <li>TPSA: -0.0127</li>
+        <li>Formal charge (FC): 0.0553</li>
+        <li>Aromatic rings: -0.1340</li>
+        <li>Heavy atoms: 0.0464</li>
+      </ul>
+      <p>Note: coefficients here are illustrative — see the notebook for training details, splits, and diagnostics.</p>
+    </section>
+
+    <section class="card">
+      <h3>How to interpret</h3>
+      <p>Positive coefficients suggest a descriptor increases logBB (higher permeability); negative coefficients suggest a reduction. For example, aromatic rings had a negative coefficient in the reported fit.</p>
+    </section>
+  </main>
+
+  <footer class="footer"><div class="container"><small>© 2025 Alex</small></div></footer>
+</body>
+</html>
