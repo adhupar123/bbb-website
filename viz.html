@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Visuals</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header class="navwrap"><div class="container topbar"><div class="brand"><h1>Interactive Visuals</h1><div class="muted">Plots derived from the notebook</div></div>
+  <nav class="mainnav"><a href="index.html">Home</a><a href="about.html">About</a><a href="simulate.html">Simulator</a></nav></div></header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Regression coefficients</h2>
+      <canvas id="coefChart" height="80"></canvas>
+      <p class="small">Coefficients reported in the notebook (illustrative).</p>
+    </section>
+
+    <section class="card">
+      <h2>Sample data scatter (logBB vs MolLogP)</h2>
+      <canvas id="scatterChart" height="140"></canvas>
+      <p class="small">Sample rows from the notebook used for quick inspection.</p>
+    </section>
+
+    <section class="card">
+      <h2>ECDF — MolLogP (sample)</h2>
+      <canvas id="ecdfChart" height="80"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>Predicted vs Actual (regression)</h2>
+      <p class="small">The notebook shows predicted vs actual logBB for the regression fit. Below is an interactive scatter: the red dashed line is the ideal y = x fit. Points are illustrative — for full dataset results see the notebook.</p>
+      <canvas id="predActChart" height="160"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>Confusion matrix (classification)</h2>
+      <p class="small">Confusion matrix output from the notebook's classifier (accuracy ≈ 0.629):</p>
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <canvas id="confMat" width="260" height="220" style="background:#fff;border-radius:8px;border:1px solid #eef3ff"></canvas>
+        <div>
+          <p><strong>Numeric matrix</strong></p>
+          <pre id="confText" style="background:#f8fafc;border-radius:6px;padding:10px;border:1px solid #eef3ff">[[532,  12],
+[372, 120]]</pre>
+          <p class="small">Interpretation: rows = actual (0 = negative, 1 = positive), columns = predicted (0, 1).</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Sample rows</h3>
+      <table class="datatable" id="sampleTable"></table>
+    </section>
+  </main>
+
+<script>
+// coefficients lifted from notebook output (illustrative)
+const intercept = 0.24220011257920013;
+const coeffs = {
+  'MolLogP': 0.0052,
+  'MolWt': -0.0012,
+  'TPSA': -0.0127,
+  'FC': 0.0553,
+  'Aromatic Rings': -0.1340,
+  'Heavy Atoms': 0.0464
+};
+
+// sample dataset (extracted from notebook head)
+const samples = [
+  {compound: 'moxalactam', logBB: -2.52, MolLogP: -1.1277, MolWt: 520.48, TPSA: 206.3, FC:0, AromaticRings:2, HeavyAtoms:36},
+  {compound: 'schembl614298', logBB: -2.15, MolLogP: -1.2365, MolWt: 461.467, TPSA:149.15, FC:0, AromaticRings:1, HeavyAtoms:33},
+  {compound: 'morphine-6-glucuronide', logBB: -2.09, MolLogP: -0.8854, MolWt:461.467, TPSA:149.15, FC:0, AromaticRings:1, HeavyAtoms:33},
+  {compound: '2-[4-(5-bromo-3-methylpyridin-2-yl)...', logBB: -1.88, MolLogP: 2.63014, MolWt:446.393, TPSA:78.94, FC:0, AromaticRings:2, HeavyAtoms:28},
+  {compound: 'sucrose', logBB: -1.70, MolLogP: -5.3956, MolWt:342.297, TPSA:189.53, FC:0, AromaticRings:0, HeavyAtoms:23}
+];
+
+// compute predicted logBB for sample rows using the notebook coefficients + intercept
+function predictRow(row){
+  return intercept
+    + coeffs.MolLogP * row.MolLogP
+    + coeffs.MolWt * row.MolWt
+    + coeffs.TPSA * row.TPSA
+    + coeffs.FC * row.FC
+    + coeffs['Aromatic Rings'] * row.AromaticRings
+    + coeffs['Heavy Atoms'] * row.HeavyAtoms;
+}
+for(const s of samples){
+  s.predicted = Number(predictRow(s).toFixed(3));
+}
+
+// coefficient bar chart
+const ctxCoef = document.getElementById('coefChart').getContext('2d');
+new Chart(ctxCoef, {
+  type: 'bar',
+  data: {
+    labels: Object.keys(coeffs),
+    datasets: [{
+      label: 'Coefficient value',
+      data: Object.values(coeffs),
+      backgroundColor: ['#0b5fff','#2563eb','#ef4444','#10b981','#f59e0b','#7c3aed']
+    }]
+  },
+  options: {responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false}}}
+});
+
+// scatter plot (logBB vs MolLogP)
+const ctxScatter = document.getElementById('scatterChart').getContext('2d');
+new Chart(ctxScatter, {
+  type: 'scatter',
+  data: {
+    datasets: [{
+      label: 'logBB vs MolLogP (samples)',
+      data: samples.map(s => ({x: s.MolLogP, y: s.logBB})),
+      backgroundColor: '#0b5fff'
+    }]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    scales: { x: {title:{display:true,text:'MolLogP'}}, y: {title:{display:true,text:'logBB'}} },
+    plugins:{legend:{display:false}}
+  }
+});
+
+// ECDF for MolLogP (sample)
+function ecdf(arr){
+  const sorted = arr.slice().sort((a,b)=>a-b);
+  return sorted.map((v,i)=>({x:v,y:(i+1)/sorted.length}));
+}
+const ecdfPoints = ecdf(samples.map(s => s.MolLogP));
+const ctxEcdf = document.getElementById('ecdfChart').getContext('2d');
+new Chart(ctxEcdf, {
+  type: 'line',
+  data: {
+    labels: ecdfPoints.map(p => p.x),
+    datasets: [{label:'ECDF', data: ecdfPoints.map(p=>p.y), fill:false, borderColor:'#0b5fff', tension:0.2}]
+  },
+  options: {responsive:true, maintainAspectRatio:false, scales:{x:{title:{display:true,text:'MolLogP'}}, y:{title:{display:true,text:'ECDF'}}}, plugins:{legend:{display:false}}}
+});
+
+// Predicted vs Actual scatter (illustrative larger sample)
+// We'll generate synthetic predicted/actual points centered around y=x with noise, and overlay the sample rows too.
+function makePredActData(n=180){
+  const pts = [];
+  for(let i=0;i<n;i++){
+    // create an actual value in plausible logBB range (-3..2)
+    const actual = -3 + Math.random()*5;
+    // predicted is actual plus noise (normal-ish)
+    const pred = actual + (Math.random()-0.5)*1.0; // ~ +/-0.5 noise
+    pts.push({x: actual, y: pred});
+  }
+  return pts;
+}
+const predActSynthetic = makePredActData();
+const predActData = predActSynthetic.concat(samples.map(s => ({x: s.logBB, y: s.predicted, label: s.compound})));
+
+// plot predicted vs actual (x = actual, y = predicted) with ideal line
+const ctxPred = document.getElementById('predActChart').getContext('2d');
+new Chart(ctxPred, {
+  type: 'scatter',
+  data: {
+    datasets: [
+      {
+        label: 'Synthetic dataset (illustrative)',
+        data: predActSynthetic.map(p => ({x:p.x, y:p.y})),
+        backgroundColor: 'rgba(59,130,246,0.6)',
+        pointRadius: 3
+      },
+      {
+        label: 'Notebook sample rows',
+        data: samples.map(s => ({x: s.logBB, y: s.predicted})),
+        backgroundColor: 'rgba(16,185,129,0.95)',
+        pointRadius: 6
+      }
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    scales: { x: {title:{display:true,text:'Actual logBB'}}, y: {title:{display:true,text:'Predicted logBB'}} },
+    plugins: {
+      legend:{position:'top'}
+    },
+    animation:false,
+    elements: {
+      line: {borderDash:[6,6], borderColor:'red'}
+    }
+  },
+  plugins: [{
+    id: 'drawLine',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      const xAxis = chart.scales.x;
+      const yAxis = chart.scales.y;
+      // draw y=x line across visible range
+      const xMin = xAxis.min, xMax = xAxis.max;
+      const x1 = xAxis.getPixelForValue(xMin);
+      const y1 = yAxis.getPixelForValue(xMin);
+      const x2 = xAxis.getPixelForValue(xMax);
+      const y2 = yAxis.getPixelForValue(xMax);
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([6,6]);
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }]
+});
+
+// Confusion matrix drawing (manual canvas)
+const confCounts = [[532, 12], [372, 120]]; // from notebook stdout
+const confLabels = [['TN','FP'], ['FN','TP']]; // rows = actual 0,1 ; cols = predicted 0,1
+const confCanvas = document.getElementById('confMat');
+const cctx = confCanvas.getContext('2d');
+function drawConfusion(){
+  const padding = 28;
+  const cellW = (confCanvas.width - padding*2)/2;
+  const cellH = (confCanvas.height - padding*2)/2;
+  // find max value for color scaling
+  const maxVal = Math.max(...confCounts.flat());
+  // background
+  cctx.fillStyle = '#fff';
+  cctx.fillRect(0,0,confCanvas.width,confCanvas.height);
+  // title
+  cctx.fillStyle = '#223';
+  cctx.font = '14px system-ui, Arial';
+  cctx.fillText('Confusion matrix (actual × predicted)', padding, 18);
+  // draw cells
+  for(let r=0;r<2;r++){
+    for(let c=0;c<2;c++){
+      const x = padding + c*cellW;
+      const y = padding + r*cellH;
+      const v = confCounts[r][c];
+      // color scale: light -> deep blue
+      const t = v / maxVal;
+      const alpha = 0.45 + 0.5*t;
+      cctx.fillStyle = `rgba(11,95,255,${alpha})`;
+      cctx.fillRect(x+6, y+6, cellW-12, cellH-12);
+      // draw count text centered
+      cctx.fillStyle = '#fff';
+      cctx.font = '18px system-ui, Arial';
+      cctx.textAlign = 'center';
+      cctx.textBaseline = 'middle';
+      cctx.fillText(String(v), x + cellW/2, y + cellH/2);
+      // small label in corner
+      cctx.fillStyle = '#0b5fff';
+      cctx.font = '12px system-ui, Arial';
+      cctx.textAlign = 'left';
+      cctx.fillText(confLabels[r][c], x + 10, y + 16);
+    }
+  }
+  // axis labels
+  cctx.fillStyle = '#223';
+  cctx.font = '12px system-ui, Arial';
+  cctx.textAlign = 'left';
+  cctx.fillText('Actual →', padding, confCanvas.height - 6);
+  cctx.save();
+  cctx.translate(confCanvas.width - 6, 20);
+  cctx.rotate(Math.PI / 2);
+  cctx.textAlign = 'left';
+  cctx.fillText('Predicted →', 0, 0);
+  cctx.restore();
+  // accuracy display
+  const total = confCounts.flat().reduce((a,b)=>a+b,0);
+  const correct = confCounts[0][0] + confCounts[1][1];
+  const acc = (correct/total);
+  cctx.fillStyle = '#223';
+  cctx.font = '13px system-ui, Arial';
+  cctx.textAlign = 'left';
+  cctx.fillText(`Accuracy: ${acc.toFixed(3)} (${correct}/${total})`, padding, confCanvas.height - 32);
+}
+drawConfusion();
+
+// fill sample table
+const table = document.getElementById('sampleTable');
+let html = '<thead><tr><th>Compound</th><th>Actual logBB</th><th>Predicted logBB</th><th>MolLogP</th><th>MolWt</th></tr></thead><tbody>';
+for(const s of samples){
+  html += `<tr><td>${s.compound}</td><td>${s.logBB}</td><td>${s.predicted}</td><td>${s.MolLogP}</td><td>${s.MolWt}</td></tr>`;
+}
+html += '</tbody>';
+table.innerHTML = html;
+</script>
+</body>
+</html>
