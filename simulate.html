@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blood-Brain Barrier Drug Permeability Simulator</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -20,7 +19,7 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 20px;
@@ -105,14 +104,67 @@
             color: #667eea;
         }
         
-        .chart-container {
+        .simulation-container {
             position: relative;
-            height: 400px;
-            margin-top: 30px;
             background: white;
-            padding: 20px;
             border-radius: 15px;
+            padding: 20px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+        
+        .simulation-title {
+            text-align: center;
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        #simulationCanvas {
+            width: 100%;
+            border: 3px solid #667eea;
+            border-radius: 10px;
+            display: block;
+            background: #f8f9fa;
+        }
+        
+        .simulation-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .sim-button {
+            padding: 12px 30px;
+            font-size: 1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        
+        .sim-button.start {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        
+        .sim-button.stop {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+            color: white;
+        }
+        
+        .sim-button.reset {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            color: white;
+        }
+        
+        .sim-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
         
         .interpretation {
@@ -151,6 +203,30 @@
             line-height: 1.5;
             font-size: 0.95em;
         }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -162,7 +238,7 @@
             <h3>About the Model</h3>
             <p>This simulator uses a multiple linear regression model trained on ~1000 drugs with known BBB permeability. 
             The LogBB value represents the logarithm of the brain-to-blood concentration ratio. Values > 0 indicate 
-            the drug can effectively cross the BBB.</p>
+            the drug can effectively cross the BBB. Watch particles simulate drug molecules attempting to cross the barrier!</p>
         </div>
         
         <div class="controls">
@@ -223,8 +299,30 @@
             <p id="interpretation-text"></p>
         </div>
         
-        <div class="chart-container">
-            <canvas id="concentrationChart"></canvas>
+        <div class="simulation-container">
+            <div class="simulation-title">🔬 BBB Permeability Simulation</div>
+            <canvas id="simulationCanvas" width="1200" height="500"></canvas>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Bloodstream</div>
+                    <div class="stat-value" id="blood-count">50</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Successful Crossings</div>
+                    <div class="stat-value" id="crossing-count">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Brain</div>
+                    <div class="stat-value" id="brain-count">0</div>
+                </div>
+            </div>
+            
+            <div class="simulation-controls">
+                <button class="sim-button start" id="startBtn">▶ Start Simulation</button>
+                <button class="sim-button stop" id="stopBtn">⏸ Pause</button>
+                <button class="sim-button reset" id="resetBtn">↻ Reset</button>
+            </div>
         </div>
     </div>
     
@@ -250,52 +348,161 @@
             heavy: document.getElementById('heavy')
         };
         
-        // Initialize chart
-        const ctx = document.getElementById('concentrationChart').getContext('2d');
-        let chart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Blood', 'Brain'],
-                datasets: [{
-                    label: 'Relative Concentration',
-                    data: [1.0, 1.0],
-                    backgroundColor: [
-                        'rgba(220, 53, 69, 0.8)',
-                        'rgba(102, 126, 234, 0.8)'
-                    ],
-                    borderColor: [
-                        'rgba(220, 53, 69, 1)',
-                        'rgba(102, 126, 234, 1)'
-                    ],
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Drug Concentration Distribution',
-                        font: {
-                            size: 18
+        // Simulation variables
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let animationId = null;
+        let isRunning = false;
+        let crossingProbability = 0.5;
+        let totalCrossings = 0;
+        
+        // Particle class
+        class Particle {
+            constructor(side) {
+                this.radius = 6;
+                this.side = side; // 'blood' or 'brain'
+                
+                // Position particles on correct side
+                if (side === 'blood') {
+                    this.x = Math.random() * (canvas.width / 2 - 40) + 20;
+                    this.color = '#dc3545'; // Red for blood
+                } else {
+                    this.x = Math.random() * (canvas.width / 2 - 40) + canvas.width / 2 + 20;
+                    this.color = '#667eea'; // Purple for brain
+                }
+                
+                this.y = Math.random() * (canvas.height - 40) + 20;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+            }
+            
+            update() {
+                // Update position
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Bounce off top and bottom
+                if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) {
+                    this.vy *= -1;
+                    this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+                }
+                
+                // Handle barrier collision (center line)
+                const barrierX = canvas.width / 2;
+                const barrierThickness = 8;
+                
+                if (this.side === 'blood') {
+                    // Coming from blood side (left)
+                    if (this.x + this.radius > barrierX - barrierThickness / 2) {
+                        // Hit the barrier
+                        if (Math.random() < crossingProbability) {
+                            // Successfully cross!
+                            this.side = 'brain';
+                            this.color = '#667eea';
+                            this.x = barrierX + barrierThickness / 2 + this.radius;
+                            totalCrossings++;
+                            updateStats();
+                        } else {
+                            // Bounce back
+                            this.vx *= -1;
+                            this.x = barrierX - barrierThickness / 2 - this.radius;
                         }
-                    },
-                    legend: {
-                        display: false
                     }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Relative Concentration'
-                        }
+                    // Bounce off left wall
+                    if (this.x - this.radius < 0) {
+                        this.vx *= -1;
+                        this.x = this.radius;
+                    }
+                } else {
+                    // Coming from brain side (right)
+                    if (this.x - this.radius < barrierX + barrierThickness / 2) {
+                        // Hit barrier from brain side - just bounce
+                        this.vx *= -1;
+                        this.x = barrierX + barrierThickness / 2 + this.radius;
+                    }
+                    // Bounce off right wall
+                    if (this.x + this.radius > canvas.width) {
+                        this.vx *= -1;
+                        this.x = canvas.width - this.radius;
                     }
                 }
             }
-        });
+            
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+        
+        function initParticles() {
+            particles = [];
+            totalCrossings = 0;
+            // Start with 50 particles in bloodstream
+            for (let i = 0; i < 50; i++) {
+                particles.push(new Particle('blood'));
+            }
+            updateStats();
+        }
+        
+        function drawBarrier() {
+            const barrierX = canvas.width / 2;
+            const barrierThickness = 8;
+            
+            // Draw barrier
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(barrierX - barrierThickness / 2, 0, barrierThickness, canvas.height);
+            
+            // Draw labels
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            
+            // Bloodstream label
+            ctx.fillStyle = '#dc3545';
+            ctx.fillText('BLOODSTREAM', canvas.width / 4, 40);
+            
+            // Brain label
+            ctx.fillStyle = '#667eea';
+            ctx.fillText('BRAIN', (canvas.width / 4) * 3, 40);
+            
+            // BBB label on barrier
+            ctx.save();
+            ctx.translate(barrierX, canvas.height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText('BLOOD-BRAIN BARRIER', 0, 5);
+            ctx.restore();
+        }
+        
+        function updateStats() {
+            const bloodCount = particles.filter(p => p.side === 'blood').length;
+            const brainCount = particles.filter(p => p.side === 'brain').length;
+            
+            document.getElementById('blood-count').textContent = bloodCount;
+            document.getElementById('brain-count').textContent = brainCount;
+            document.getElementById('crossing-count').textContent = totalCrossings;
+        }
+        
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawBarrier();
+            
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+            
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
         
         function calculateLogBB() {
             const values = {
@@ -326,6 +533,11 @@
             
             const ratio = Math.pow(10, logBB);
             
+            // Calculate crossing probability (sigmoid function for smooth probability)
+            // Maps logBB to probability between 0.05 and 0.95
+            crossingProbability = 1 / (1 + Math.exp(-logBB * 2));
+            crossingProbability = Math.max(0.05, Math.min(0.95, crossingProbability));
+            
             // Update results
             document.getElementById('logbb-result').textContent = logBB.toFixed(3);
             document.getElementById('ratio-result').textContent = ratio.toFixed(3);
@@ -347,31 +559,55 @@
             if (logBB > 0) {
                 interpretation = `This drug shows good BBB permeability with a LogBB of ${logBB.toFixed(3)}. 
                 The brain concentration is expected to be ${ratio.toFixed(2)} times the blood concentration. 
-                This suggests the drug can effectively reach the central nervous system.`;
+                In the simulation, particles have a ${(crossingProbability * 100).toFixed(1)}% chance of crossing the barrier with each collision.`;
             } else if (logBB > -0.5) {
                 interpretation = `This drug shows moderate BBB permeability with a LogBB of ${logBB.toFixed(3)}. 
                 The brain concentration is ${(ratio * 100).toFixed(1)}% of the blood concentration. 
-                Some therapeutic effect in the CNS may be possible, but optimization could improve delivery.`;
+                Particles have a ${(crossingProbability * 100).toFixed(1)}% chance of crossing with each barrier collision.`;
             } else {
                 interpretation = `This drug shows poor BBB permeability with a LogBB of ${logBB.toFixed(3)}. 
                 The brain concentration is only ${(ratio * 100).toFixed(1)}% of the blood concentration. 
-                Significant structural modifications would be needed for CNS drug development.`;
+                Particles have just a ${(crossingProbability * 100).toFixed(1)}% chance of crossing the barrier.`;
             }
             
             document.getElementById('interpretation-text').textContent = interpretation;
-            
-            // Update chart
-            chart.data.datasets[0].data = [1.0, ratio];
-            chart.update();
         }
         
-        // Add event listeners to all sliders
+        // Event listeners
         Object.values(sliders).forEach(slider => {
             slider.addEventListener('input', calculateLogBB);
         });
         
-        // Initial calculation
+        document.getElementById('startBtn').addEventListener('click', () => {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        });
+        
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        });
+        
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            initParticles();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBarrier();
+            particles.forEach(p => p.draw());
+        });
+        
+        // Initialize
         calculateLogBB();
+        initParticles();
+        drawBarrier();
+        particles.forEach(p => p.draw());
     </script>
 </body>
 </html>
