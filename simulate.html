@@ -158,36 +158,28 @@ function step(dt){
       p.justCrossed = false;
     }
 
-    // Brownian motion - stronger random acceleration
-    p.vx += rand(-80, 80) * dt;
-    p.vy += rand(-80, 80) * dt;
-    
-    // Less damping to maintain higher speeds
-    p.vx *= 0.98;
-    p.vy *= 0.98;
-    
-    // Update position
+    // Move in straight line - no random acceleration
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
-    // Bounce off top and bottom walls (with higher restitution)
+    // Bounce off top and bottom walls (elastic - no energy loss)
     if(p.y - p.r < 4){
       p.y = p.r + 4;
-      p.vy = Math.abs(p.vy) * 0.9;
+      p.vy = -p.vy;
     }
     if(p.y + p.r > h - 4){
       p.y = h - p.r - 4;
-      p.vy = -Math.abs(p.vy) * 0.9;
+      p.vy = -p.vy;
     }
 
-    // Bounce off left and right walls (with higher restitution)
+    // Bounce off left and right walls (elastic - no energy loss)
     if(p.x - p.r < 4){
       p.x = p.r + 4;
-      p.vx = Math.abs(p.vx) * 0.9;
+      p.vx = -p.vx;
     }
     if(p.x + p.r > w - 4){
       p.x = w - p.r - 4;
-      p.vx = -Math.abs(p.vx) * 0.9;
+      p.vx = -p.vx;
     }
 
     // Check for barrier interaction - only if not just crossed
@@ -206,13 +198,13 @@ function step(dt){
         p.justCrossed = true;
         // Velocity continues in same direction
       } else {
-        // Failed to cross - bounce back from barrier (with higher restitution)
+        // Failed to cross - bounce back from barrier (elastic)
         if(crossingToBrain){
           p.x = bx - p.r - 8;
-          p.vx = -Math.abs(p.vx) * 0.9;
+          p.vx = -p.vx;
         } else {
           p.x = bx + p.r + 8;
-          p.vx = Math.abs(p.vx) * 0.9;
+          p.vx = -p.vx;
         }
       }
     }
