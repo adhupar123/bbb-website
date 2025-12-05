@@ -90,8 +90,8 @@ function init(){
       x: rand(rpx + 8, w/2 - 30),
       y: rand(rpx + 8, h - rpx - 8),
       r: rpx,
-      vx: rand(-20, 20),  // random velocity
-      vy: rand(-20, 20),
+      vx: rand(-100, 100),  // much faster initial velocity
+      vy: rand(-100, 100),
       justCrossed: false
     });
   }
@@ -158,36 +158,36 @@ function step(dt){
       p.justCrossed = false;
     }
 
-    // Brownian motion - random walk
-    p.vx += rand(-30, 30) * dt;
-    p.vy += rand(-30, 30) * dt;
+    // Brownian motion - stronger random acceleration
+    p.vx += rand(-80, 80) * dt;
+    p.vy += rand(-80, 80) * dt;
     
-    // Damping to keep velocities reasonable
-    p.vx *= 0.95;
-    p.vy *= 0.95;
+    // Less damping to maintain higher speeds
+    p.vx *= 0.98;
+    p.vy *= 0.98;
     
     // Update position
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
-    // Bounce off top and bottom walls
+    // Bounce off top and bottom walls (with higher restitution)
     if(p.y - p.r < 4){
       p.y = p.r + 4;
-      p.vy = Math.abs(p.vy) * 0.8;
+      p.vy = Math.abs(p.vy) * 0.9;
     }
     if(p.y + p.r > h - 4){
       p.y = h - p.r - 4;
-      p.vy = -Math.abs(p.vy) * 0.8;
+      p.vy = -Math.abs(p.vy) * 0.9;
     }
 
-    // Bounce off left and right walls
+    // Bounce off left and right walls (with higher restitution)
     if(p.x - p.r < 4){
       p.x = p.r + 4;
-      p.vx = Math.abs(p.vx) * 0.8;
+      p.vx = Math.abs(p.vx) * 0.9;
     }
     if(p.x + p.r > w - 4){
       p.x = w - p.r - 4;
-      p.vx = -Math.abs(p.vx) * 0.8;
+      p.vx = -Math.abs(p.vx) * 0.9;
     }
 
     // Check for barrier interaction - only if not just crossed
@@ -206,13 +206,13 @@ function step(dt){
         p.justCrossed = true;
         // Velocity continues in same direction
       } else {
-        // Failed to cross - bounce back from barrier
+        // Failed to cross - bounce back from barrier (with higher restitution)
         if(crossingToBrain){
           p.x = bx - p.r - 8;
-          p.vx = -Math.abs(p.vx) * 0.8;
+          p.vx = -Math.abs(p.vx) * 0.9;
         } else {
           p.x = bx + p.r + 8;
-          p.vx = Math.abs(p.vx) * 0.8;
+          p.vx = Math.abs(p.vx) * 0.9;
         }
       }
     }
