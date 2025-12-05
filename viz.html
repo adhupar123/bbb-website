@@ -7,14 +7,30 @@
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* Fix for chart container sizing */
-    .chart-container {
+    /* Prevent chart canvas from growing */
+    canvas {
+      display: block;
+      max-width: 100%;
+      height: auto !important;
+    }
+    .chart-wrapper {
       position: relative;
       width: 100%;
+      height: 250px;
     }
-    .chart-container.small { height: 250px; }
-    .chart-container.medium { height: 350px; }
-    .chart-container.large { height: 400px; }
+    .chart-wrapper.medium {
+      height: 350px;
+    }
+    .chart-wrapper.large {
+      height: 400px;
+    }
+    .chart-wrapper canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+    }
   </style>
 </head>
 <body>
@@ -24,7 +40,7 @@
   <main class="container">
     <section class="card">
       <h2>Regression coefficients</h2>
-      <div class="chart-container small">
+      <div class="chart-wrapper">
         <canvas id="coefChart"></canvas>
       </div>
       <p class="small">Coefficients reported in the notebook (illustrative).</p>
@@ -32,7 +48,7 @@
 
     <section class="card">
       <h2>Sample data scatter (logBB vs MolLogP)</h2>
-      <div class="chart-container medium">
+      <div class="chart-wrapper medium">
         <canvas id="scatterChart"></canvas>
       </div>
       <p class="small">Sample rows from the notebook used for quick inspection.</p>
@@ -40,7 +56,7 @@
 
     <section class="card">
       <h2>ECDF — MolLogP (sample)</h2>
-      <div class="chart-container small">
+      <div class="chart-wrapper">
         <canvas id="ecdfChart"></canvas>
       </div>
     </section>
@@ -48,7 +64,7 @@
     <section class="card">
       <h2>Predicted vs Actual (regression)</h2>
       <p class="small">The notebook shows predicted vs actual logBB for the regression fit. Below is an interactive scatter: the red dashed line is the ideal y = x fit. Points are illustrative — for full dataset results see the notebook.</p>
-      <div class="chart-container large">
+      <div class="chart-wrapper large">
         <canvas id="predActChart"></canvas>
       </div>
     </section>
@@ -108,6 +124,10 @@ for(const s of samples){
   s.predicted = Number(predictRow(s).toFixed(3));
 }
 
+// Chart.js default configuration to prevent resizing issues
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+
 // coefficient bar chart
 const ctxCoef = document.getElementById('coefChart').getContext('2d');
 new Chart(ctxCoef, {
@@ -121,8 +141,6 @@ new Chart(ctxCoef, {
     }]
   },
   options: {
-    responsive: true,
-    maintainAspectRatio: false,
     plugins: {legend: {display: false}}
   }
 });
@@ -139,8 +157,6 @@ new Chart(ctxScatter, {
     }]
   },
   options: {
-    responsive: true,
-    maintainAspectRatio: false,
     scales: {
       x: {title: {display: true, text: 'MolLogP'}},
       y: {title: {display: true, text: 'logBB'}}
@@ -169,8 +185,6 @@ new Chart(ctxEcdf, {
     }]
   },
   options: {
-    responsive: true,
-    maintainAspectRatio: false,
     scales: {
       x: {title: {display: true, text: 'MolLogP'}},
       y: {title: {display: true, text: 'ECDF'}}
@@ -211,8 +225,6 @@ new Chart(ctxPred, {
     ]
   },
   options: {
-    responsive: true,
-    maintainAspectRatio: false,
     scales: {
       x: {title: {display: true, text: 'Actual logBB'}},
       y: {title: {display: true, text: 'Predicted logBB'}}
