@@ -6,7 +6,6 @@
   <title>Simulator — BBB Diffusion (Simple)</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    /* quick overrides for simulator */
     .simcard{padding:12px}
     #simCanvas{width:100%;height:420px;border-radius:10px;background:#fff;border:1px solid #e6edf8; display:block}
     label{font-weight:600;display:block;margin-top:10px}
@@ -15,13 +14,13 @@
   </style>
 </head>
 <body>
-  <header class="navwrap"><div class="container topbar"><div class="brand"><h1>Interactive Simulator</h1><div class="muted">Simple visual model</div></div>
+  <header class="navwrap"><div class="container topbar"><div class="brand"><h1>Interactive Simulator</h1><div class="muted">Simple visual model with equilibrium</div></div>
   <nav class="mainnav"><a href="index.html">Home</a></nav></div></header>
 
   <main class="container">
     <section class="card simcard">
-      <h2>BBB Diffusion — Simple Visualizer</h2>
-      <p class="small">Three sliders: <strong>radius</strong>, <strong>LogBB</strong>, and <strong>charge</strong>. Successful particles flow into the brain region and are counted when they exit on the right.</p>
+      <h2>BBB Diffusion — Equilibrium Visualizer</h2>
+      <p class="small">Three sliders: <strong>radius</strong>, <strong>LogBB</strong>, and <strong>charge</strong>. Particles can cross in both directions, establishing an equilibrium across the BBB.</p>
 
       <canvas id="simCanvas"></canvas>
 
@@ -45,18 +44,16 @@
             <a id="resetBtn" class="btn ghost">Reset</a>
           </div>
 
-          <p class="small">Flowed across BBB: <span id="crossed">0</span> / <span id="total">0</span></p>
+          <p class="small">Bloodstream: <span id="bloodCount">400</span> | Brain: <span id="brainCount">0</span></p>
         </div>
       </div>
     </section>
   </main>
 
 <script>
-// Modified simulator: successful crossing makes particles flow into the brain region
 const canvas = document.getElementById('simCanvas');
 const ctx = canvas.getContext('2d');
 
-// Fit canvas to displayed size (pixel ratio)
 function fitCanvas(){
   const DPR = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -67,15 +64,13 @@ function fitCanvas(){
 window.addEventListener('resize', fitCanvas);
 fitCanvas();
 
-const NUM = 400;       // fixed particle count
-const FIXED_D = 5;     // fixed diffusion coefficient (visual)
-const FIXED_PERM = 0.06; // base permeability
+const NUM = 400;
+const FIXED_D = 5;
+const FIXED_PERM = 0.06;
 
 let particles = [];
 let running = false;
-let crossed = 0;
 
-// UI elements
 const radSlider = document.getElementById('radSlider');
 const radLabel = document.getElementById('radLabel');
 const logbb = document.getElementById('logbb');
@@ -83,8 +78,8 @@ const logbbLabel = document.getElementById('logbbLabel');
 const charge = document.getElementById('charge');
 const startBtn = document.getElementById('startBtn');
 const resetBtn = document.getElementById('resetBtn');
-const crossedEl = document.getElementById('crossed');
-const totalEl = document.getElementById('total');
+const bloodCountEl = document.getElementById('bloodCount');
+const brainCountEl = document.getElementById('brainCount');
 
 radSlider.oninput = e => radLabel.textContent = e.target.value;
 logbb.oninput = e => logbbLabel.textContent = e.target.value;
@@ -93,31 +88,38 @@ function rand(a,b){return a + Math.random()*(b-a);}
 
 function init(){
   particles = [];
-  crossed = 0;
   const rpx = Math.max(2, Number(radSlider.value) / 20);
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
+  
+  // All particles start in bloodstream (left side)
   for(let i=0;i<NUM;i++){ 
     particles.push({
       x: rand(8, w/2 - 30),
       y: rand(8, h - 8),
       r: rpx,
-      passed: false,   // has been allowed to flow through the barrier
-      removed: false,  // counted and removed from view
-      vx: 0
+      inBrain: false  // tracks which side of barrier particle is on
     });
   }
-  crossedEl.textContent = crossed;
-  totalEl.textContent = NUM;
+  updateCounts();
+}
+
+function updateCounts(){
+  const inBrain = particles.filter(p => p.inBrain).length;
+  const inBlood = NUM - inBrain;
+  bloodCountEl.textContent = inBlood;
+  brainCountEl.textContent = inBrain;
 }
 
 function drawBackground(){
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.fillStyle = '#fff';
   ctx.fillRect(0,0,w,h);
+  
   // barrier line
   ctx.fillStyle = '#0b5fff';
   ctx.fillRect(w/2 - 3, 0, 6, h);
+  
   // labels
   ctx.fillStyle = '#223';
   ctx.font = '12px system-ui, Arial';
@@ -133,79 +135,81 @@ function step(dt){
   const w = canvas.clientWidth, h = canvas.clientHeight;
   const bx = w/2;
 
-  // map logBB -1.5..1.0 -> 0..1
+  // Calculate crossing probability factors
   const t = Math.min(1, Math.max(0, (logbbVal + 1.5) / 2.5));
-  const logbbEffect = 0.4 * t + 0.6; // 0.6..1.0
+  const logbbEffect = 0.4 * t + 0.6;
   const sizeFactor = Math.max(0.05, 1 - (rnm / 200));
 
   for(const p of particles){
-    if(p.removed) continue;
+    // Diffusion
+    p.x += rand(-1,1) * FIXED_D * dt * 18;
+    p.y += rand(-1,1) * FIXED_D * dt * 18;
 
-    if(!p.passed){
-      // diffusion
-      p.x += rand(-1,1) * FIXED_D * dt * 18;
-      p.y += rand(-1,1) * FIXED_D * dt * 18;
+    // Small charge bias
+    if(chargeMode === 'positive') p.x += 0.4;
+    if(chargeMode === 'negative') p.x -= 0.4;
 
-      // small charge bias
-      if(chargeMode === 'positive') p.x += 0.4;
-      if(chargeMode === 'negative') p.x -= 0.4;
+    // Keep particles in vertical bounds
+    if(p.y < p.r + 4) p.y = p.r + 4;
+    if(p.y > h - (p.r + 4)) p.y = h - (p.r + 4);
 
-      // bounds
-      if(p.y < p.r + 4) p.y = p.r + 4;
-      if(p.y > h - (p.r + 4)) p.y = h - (p.r + 4);
+    // Keep particles in horizontal bounds
+    if(p.x < p.r + 4) p.x = p.r + 4;
+    if(p.x > w - (p.r + 4)) p.x = w - (p.r + 4);
 
-      // interaction with barrier
-      if(p.x > bx - (p.r + 2)){ 
-        const prob = FIXED_PERM * logbbEffect * sizeFactor;
-        if(Math.random() < prob){
-          // allowed to pass -> give a rightward velocity so the particle flows across
-          p.passed = true;
-          // velocity (pixels per second) — depends on logBB and size
-          const baseSpeed = 30 + 40 * t; // 30..70
-          p.vx = baseSpeed * (0.5 + Math.random()*1.0) * (0.6 + sizeFactor);
-          // slight upward/downward kick so they don't all travel in a line
-          p.vy = rand(-10,10);
+    // Check which side of barrier particle is on and update status
+    if(p.x < bx && p.inBrain){
+      p.inBrain = false;
+    } else if(p.x > bx && !p.inBrain){
+      p.inBrain = true;
+    }
+
+    // Interaction with barrier (crossing in either direction)
+    const distToBarrier = Math.abs(p.x - bx);
+    
+    if(distToBarrier < p.r + 2){
+      const prob = FIXED_PERM * logbbEffect * sizeFactor;
+      
+      if(Math.random() < prob){
+        // Allow crossing - push particle through to other side
+        if(p.x < bx){
+          // Crossing from blood to brain (left to right)
+          p.x = bx + p.r + 6;
+          p.inBrain = true;
         } else {
-          // bounce back slightly to the left of the barrier
-          p.x = bx - (p.r + 6);
+          // Crossing from brain to blood (right to left)
+          p.x = bx - p.r - 6;
+          p.inBrain = false;
+        }
+      } else {
+        // Bounce back
+        if(p.x < bx){
+          p.x = bx - p.r - 6;
+        } else {
+          p.x = bx + p.r + 6;
         }
       }
-    } else {
-      // flowing through the barrier into the brain region
-      // continue to the right with vx, add small vertical drift
-      p.x += p.vx * dt;
-      p.y += (p.vy || 0) * dt * 0.5;
-
-      // gentle diffusion inside brain
-      p.x += rand(-0.2,0.2) * FIXED_D * dt * 18;
-      p.y += rand(-0.4,0.4) * FIXED_D * dt * 18;
-
-      // count and mark removed once they exit the canvas to the right
-      if(p.x > w - (p.r + 4)){
-        p.removed = true;
-        crossed++;
-      }
-
-      // keep vertically in bounds
-      if(p.y < p.r + 4) p.y = p.r + 4;
-      if(p.y > h - (p.r + 4)) p.y = h - (p.r + 4);
     }
   }
-  crossedEl.textContent = crossed;
+  
+  updateCounts();
 }
 
 function render(){
   drawBackground();
+  
+  const logbbVal = Number(logbb.value);
+  const t = Math.min(1, Math.max(0, (logbbVal + 1.5) / 2.5));
+  
   for(const p of particles){
-    if(p.removed) continue;
-    // color by logBB for non-passed; passed particles are shown green
-    const t = Math.min(1, Math.max(0, (Number(logbb.value) + 1.5) / 2.5));
-    const r = Math.round(220 * t + 10 * (1 - t));
-    const b = Math.round(220 * (1 - t) + 10 * t);
+    // Color based on which side of barrier
     ctx.beginPath();
-    if(p.passed){
-      ctx.fillStyle = 'rgba(34,197,94,0.95)'; // green for flowing particles
+    if(p.inBrain){
+      ctx.fillStyle = 'rgba(34,197,94,0.85)'; // green in brain
     } else {
+      // Original color gradient based on logBB
+      const r = Math.round(220 * t + 10 * (1 - t));
+      const b = Math.round(220 * (1 - t) + 10 * t);
       ctx.fillStyle = `rgb(${r},80,${b})`;
     }
     ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
@@ -231,6 +235,7 @@ startBtn.addEventListener('click', ()=>{
     requestAnimationFrame(loop);
   }
 });
+
 resetBtn.addEventListener('click', ()=>{
   running = false;
   init();
