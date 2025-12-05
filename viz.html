@@ -6,6 +6,16 @@
   <title>Interactive Visuals</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Fix for chart container sizing */
+    .chart-container {
+      position: relative;
+      width: 100%;
+    }
+    .chart-container.small { height: 250px; }
+    .chart-container.medium { height: 350px; }
+    .chart-container.large { height: 400px; }
+  </style>
 </head>
 <body>
   <header class="navwrap"><div class="container topbar"><div class="brand"><h1>Interactive Visuals</h1><div class="muted">Plots derived from the notebook</div></div>
@@ -14,25 +24,33 @@
   <main class="container">
     <section class="card">
       <h2>Regression coefficients</h2>
-      <canvas id="coefChart" height="80"></canvas>
+      <div class="chart-container small">
+        <canvas id="coefChart"></canvas>
+      </div>
       <p class="small">Coefficients reported in the notebook (illustrative).</p>
     </section>
 
     <section class="card">
       <h2>Sample data scatter (logBB vs MolLogP)</h2>
-      <canvas id="scatterChart" height="140"></canvas>
+      <div class="chart-container medium">
+        <canvas id="scatterChart"></canvas>
+      </div>
       <p class="small">Sample rows from the notebook used for quick inspection.</p>
     </section>
 
     <section class="card">
       <h2>ECDF — MolLogP (sample)</h2>
-      <canvas id="ecdfChart" height="80"></canvas>
+      <div class="chart-container small">
+        <canvas id="ecdfChart"></canvas>
+      </div>
     </section>
 
     <section class="card">
       <h2>Predicted vs Actual (regression)</h2>
       <p class="small">The notebook shows predicted vs actual logBB for the regression fit. Below is an interactive scatter: the red dashed line is the ideal y = x fit. Points are illustrative — for full dataset results see the notebook.</p>
-      <canvas id="predActChart" height="160"></canvas>
+      <div class="chart-container large">
+        <canvas id="predActChart"></canvas>
+      </div>
     </section>
 
     <section class="card">
@@ -102,7 +120,11 @@ new Chart(ctxCoef, {
       backgroundColor: ['#0b5fff','#2563eb','#ef4444','#10b981','#f59e0b','#7c3aed']
     }]
   },
-  options: {responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false}}}
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {legend: {display: false}}
+  }
 });
 
 // scatter plot (logBB vs MolLogP)
@@ -117,9 +139,13 @@ new Chart(ctxScatter, {
     }]
   },
   options: {
-    responsive:true, maintainAspectRatio:false,
-    scales: { x: {title:{display:true,text:'MolLogP'}}, y: {title:{display:true,text:'logBB'}} },
-    plugins:{legend:{display:false}}
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: {title: {display: true, text: 'MolLogP'}},
+      y: {title: {display: true, text: 'logBB'}}
+    },
+    plugins: {legend: {display: false}}
   }
 });
 
@@ -134,28 +160,37 @@ new Chart(ctxEcdf, {
   type: 'line',
   data: {
     labels: ecdfPoints.map(p => p.x),
-    datasets: [{label:'ECDF', data: ecdfPoints.map(p=>p.y), fill:false, borderColor:'#0b5fff', tension:0.2}]
+    datasets: [{
+      label: 'ECDF',
+      data: ecdfPoints.map(p=>p.y),
+      fill: false,
+      borderColor: '#0b5fff',
+      tension: 0.2
+    }]
   },
-  options: {responsive:true, maintainAspectRatio:false, scales:{x:{title:{display:true,text:'MolLogP'}}, y:{title:{display:true,text:'ECDF'}}}, plugins:{legend:{display:false}}}
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: {title: {display: true, text: 'MolLogP'}},
+      y: {title: {display: true, text: 'ECDF'}}
+    },
+    plugins: {legend: {display: false}}
+  }
 });
 
 // Predicted vs Actual scatter (illustrative larger sample)
-// We'll generate synthetic predicted/actual points centered around y=x with noise, and overlay the sample rows too.
 function makePredActData(n=180){
   const pts = [];
   for(let i=0;i<n;i++){
-    // create an actual value in plausible logBB range (-3..2)
     const actual = -3 + Math.random()*5;
-    // predicted is actual plus noise (normal-ish)
-    const pred = actual + (Math.random()-0.5)*1.0; // ~ +/-0.5 noise
+    const pred = actual + (Math.random()-0.5)*1.0;
     pts.push({x: actual, y: pred});
   }
   return pts;
 }
 const predActSynthetic = makePredActData();
-const predActData = predActSynthetic.concat(samples.map(s => ({x: s.logBB, y: s.predicted, label: s.compound})));
 
-// plot predicted vs actual (x = actual, y = predicted) with ideal line
 const ctxPred = document.getElementById('predActChart').getContext('2d');
 new Chart(ctxPred, {
   type: 'scatter',
@@ -176,15 +211,16 @@ new Chart(ctxPred, {
     ]
   },
   options: {
-    responsive:true, maintainAspectRatio:false,
-    scales: { x: {title:{display:true,text:'Actual logBB'}}, y: {title:{display:true,text:'Predicted logBB'}} },
-    plugins: {
-      legend:{position:'top'}
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: {title: {display: true, text: 'Actual logBB'}},
+      y: {title: {display: true, text: 'Predicted logBB'}}
     },
-    animation:false,
-    elements: {
-      line: {borderDash:[6,6], borderColor:'red'}
-    }
+    plugins: {
+      legend: {position: 'top'}
+    },
+    animation: false
   },
   plugins: [{
     id: 'drawLine',
@@ -192,7 +228,6 @@ new Chart(ctxPred, {
       const ctx = chart.ctx;
       const xAxis = chart.scales.x;
       const yAxis = chart.scales.y;
-      // draw y=x line across visible range
       const xMin = xAxis.min, xMax = xAxis.max;
       const x1 = xAxis.getPixelForValue(xMin);
       const y1 = yAxis.getPixelForValue(xMin);
@@ -212,48 +247,40 @@ new Chart(ctxPred, {
 });
 
 // Confusion matrix drawing (manual canvas)
-const confCounts = [[532, 12], [372, 120]]; // from notebook stdout
-const confLabels = [['TN','FP'], ['FN','TP']]; // rows = actual 0,1 ; cols = predicted 0,1
+const confCounts = [[532, 12], [372, 120]];
+const confLabels = [['TN','FP'], ['FN','TP']];
 const confCanvas = document.getElementById('confMat');
 const cctx = confCanvas.getContext('2d');
 function drawConfusion(){
   const padding = 28;
   const cellW = (confCanvas.width - padding*2)/2;
   const cellH = (confCanvas.height - padding*2)/2;
-  // find max value for color scaling
   const maxVal = Math.max(...confCounts.flat());
-  // background
   cctx.fillStyle = '#fff';
   cctx.fillRect(0,0,confCanvas.width,confCanvas.height);
-  // title
   cctx.fillStyle = '#223';
   cctx.font = '14px system-ui, Arial';
   cctx.fillText('Confusion matrix (actual × predicted)', padding, 18);
-  // draw cells
   for(let r=0;r<2;r++){
     for(let c=0;c<2;c++){
       const x = padding + c*cellW;
       const y = padding + r*cellH;
       const v = confCounts[r][c];
-      // color scale: light -> deep blue
       const t = v / maxVal;
       const alpha = 0.45 + 0.5*t;
       cctx.fillStyle = `rgba(11,95,255,${alpha})`;
       cctx.fillRect(x+6, y+6, cellW-12, cellH-12);
-      // draw count text centered
       cctx.fillStyle = '#fff';
       cctx.font = '18px system-ui, Arial';
       cctx.textAlign = 'center';
       cctx.textBaseline = 'middle';
       cctx.fillText(String(v), x + cellW/2, y + cellH/2);
-      // small label in corner
       cctx.fillStyle = '#0b5fff';
       cctx.font = '12px system-ui, Arial';
       cctx.textAlign = 'left';
       cctx.fillText(confLabels[r][c], x + 10, y + 16);
     }
   }
-  // axis labels
   cctx.fillStyle = '#223';
   cctx.font = '12px system-ui, Arial';
   cctx.textAlign = 'left';
@@ -264,7 +291,6 @@ function drawConfusion(){
   cctx.textAlign = 'left';
   cctx.fillText('Predicted →', 0, 0);
   cctx.restore();
-  // accuracy display
   const total = confCounts.flat().reduce((a,b)=>a+b,0);
   const correct = confCounts[0][0] + confCounts[1][1];
   const acc = (correct/total);
