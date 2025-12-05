@@ -153,7 +153,15 @@ function step(dt){
   const t = Math.min(1, Math.max(0, (logbbVal + 1.5) / 2.5));
   const logbbEffect = 0.4 * t + 0.6;
   const sizeFactor = Math.max(0.05, 1 - (rnm / 200));
-  const crossProb = FIXED_PERM * logbbEffect * sizeFactor;
+  
+  // Base crossing probability
+  const baseCrossProb = FIXED_PERM * sizeFactor;
+  
+  // LogBB affects the ratio of blood->brain vs brain->blood crossing
+  // Positive LogBB: easier to enter brain, harder to leave
+  // Negative LogBB: harder to enter brain, easier to leave
+  const bloodToBrainProb = baseCrossProb * logbbEffect;
+  const brainToBloodProb = baseCrossProb * (2 - logbbEffect); // inverse relationship
 
   for(const p of particles){
     // Reset justCrossed flag if particle has moved away from barrier
@@ -195,10 +203,14 @@ function step(dt){
 
     // Check for barrier interaction - only if not just crossed
     if(!p.justCrossed && distToBarrier < p.r + 3){
+      // Determine which direction we're trying to cross
+      const crossingToBrain = (p.x < bx);
+      const crossProb = crossingToBrain ? bloodToBrainProb : brainToBloodProb;
+      
       // Attempt crossing
       if(Math.random() < crossProb){
         // Successfully cross to the other side
-        if(p.x < bx){
+        if(crossingToBrain){
           // Crossing from blood to brain (left to right)
           p.x = bx + p.r + 8;
           p.inBrain = true;
@@ -210,7 +222,7 @@ function step(dt){
         p.justCrossed = true;
       } else {
         // Failed to cross - bounce back
-        if(p.x < bx){
+        if(crossingToBrain){
           // Bounce back into bloodstream
           p.x = bx - p.r - 8;
           p.inBrain = false;
