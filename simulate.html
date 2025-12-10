@@ -1,613 +1,154 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blood-Brain Barrier Drug Permeability Simulator</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BBB Simulation – Fick's Law</title>
+
     <style>
-        * {
+        body {
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
+            background: #f5f5f5;
         }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
+
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
+            max-width: 900px;
+            margin: 40px auto;
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 40px;
-        }
-        
-        h1 {
-            color: #667eea;
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 2.5em;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 1.1em;
-        }
-        
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 25px;
-            margin-bottom: 40px;
-        }
-        
-        .control-group {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-        }
-        
-        .control-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #495057;
-            font-weight: 600;
-            font-size: 0.95em;
-        }
-        
-        .control-group input[type="range"] {
-            width: 100%;
-            margin-bottom: 5px;
-        }
-        
-        .value-display {
-            text-align: right;
-            color: #667eea;
-            font-weight: bold;
-            font-size: 1.1em;
-        }
-        
-        .results {
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
             padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-        }
-        
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px;
-            background: white;
             border-radius: 10px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-        
-        .result-label {
-            font-weight: 600;
-            color: #495057;
-        }
-        
-        .result-value {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .simulation-container {
-            position: relative;
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            margin-top: 30px;
-        }
-        
-        .simulation-title {
+
+        h1 {
             text-align: center;
-            font-size: 1.5em;
-            color: #667eea;
-            margin-bottom: 20px;
+        }
+
+        label {
             font-weight: bold;
         }
-        
+
+        .input-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .input-row input {
+            width: 100%;
+        }
+
         #simulationCanvas {
             width: 100%;
-            border: 3px solid #667eea;
-            border-radius: 10px;
-            display: block;
-            background: #f8f9fa;
+            height: 300px;
+            border: 1px solid #ccc;
+            margin-top: 25px;
         }
-        
-        .simulation-controls {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 20px;
-        }
-        
-        .sim-button {
-            padding: 12px 30px;
-            font-size: 1em;
-            font-weight: bold;
+
+        #runBtn {
+            padding: 10px 20px;
+            background: #0077ff;
             border: none;
-            border-radius: 25px;
+            color: white;
+            border-radius: 8px;
             cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-        }
-        
-        .sim-button.start {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-        }
-        
-        .sim-button.stop {
-            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
-            color: white;
-        }
-        
-        .sim-button.reset {
-            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
-            color: white;
-        }
-        
-        .sim-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        
-        .interpretation {
             margin-top: 20px;
-            padding: 20px;
-            background: #fff3cd;
-            border-left: 5px solid #ffc107;
-            border-radius: 5px;
         }
-        
-        .interpretation h3 {
-            color: #856404;
-            margin-bottom: 10px;
-        }
-        
-        .interpretation p {
-            color: #856404;
-            line-height: 1.6;
-        }
-        
-        .info-box {
-            background: #e7f3ff;
-            border-left: 5px solid #2196F3;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-        }
-        
-        .info-box h3 {
-            color: #1976D2;
-            margin-bottom: 8px;
-        }
-        
-        .info-box p {
-            color: #0d47a1;
-            line-height: 1.5;
-            font-size: 0.95em;
-        }
-        
-        .stats {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 15px;
-            padding: 15px;
-            background: white;
-            border-radius: 10px;
-        }
-        
-        .stat-item {
-            text-align: center;
-        }
-        
-        .stat-label {
-            font-size: 0.9em;
-            color: #666;
-        }
-        
-        .stat-value {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #667eea;
+        #runBtn:hover {
+            background: #005fcc;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <h1>🧠 Blood-Brain Barrier Drug Permeability Simulator</h1>
-        <p class="subtitle">Predict drug permeability across the BBB using molecular descriptors</p>
-        
-        <div class="info-box">
-            <h3>About the Model</h3>
-            <p>This simulator uses a multiple linear regression model trained on ~1000 drugs with known BBB permeability. 
-            The LogBB value represents the logarithm of the brain-to-blood concentration ratio. Values > 0 indicate 
-            the drug can effectively cross the BBB. Watch particles simulate drug molecules attempting to cross the barrier!</p>
-        </div>
-        
-        <div class="controls">
-            <div class="control-group">
-                <label for="molLogP">Lipophilicity (MolLogP)</label>
-                <input type="range" id="molLogP" min="-2" max="7" step="0.1" value="2.0">
-                <div class="value-display"><span id="molLogP-val">2.0</span></div>
+        <h1>Fick's Law Simulation</h1>
+
+        <p>
+            This simulation models diffusion across a membrane using 
+            <strong>Fick's First Law</strong>:  
+            <br><br>
+            <code>J = -D (dC/dx)</code>
+        </p>
+
+        <div class="input-row">
+            <div>
+                <label>Diffusion Coefficient (D)</label><br>
+                <input type="number" id="D" value="0.5" step="0.01" />
             </div>
-            
-            <div class="control-group">
-                <label for="molWt">Molecular Weight (Da)</label>
-                <input type="range" id="molWt" min="50" max="900" step="5" value="350">
-                <div class="value-display"><span id="molWt-val">350</span> Da</div>
+
+            <div>
+                <label>Initial Concentration Left (C1)</label><br>
+                <input type="number" id="C1" value="1.0" step="0.01" />
             </div>
-            
-            <div class="control-group">
-                <label for="tpsa">Topological Polar Surface Area (Ų)</label>
-                <input type="range" id="tpsa" min="0" max="220" step="1" value="70">
-                <div class="value-display"><span id="tpsa-val">70</span> Ų</div>
-            </div>
-            
-            <div class="control-group">
-                <label for="fc">Formal Charge</label>
-                <input type="range" id="fc" min="-3" max="3" step="1" value="0">
-                <div class="value-display"><span id="fc-val">0</span></div>
-            </div>
-            
-            <div class="control-group">
-                <label for="aromatic">Aromatic Rings</label>
-                <input type="range" id="aromatic" min="0" max="10" step="1" value="1">
-                <div class="value-display"><span id="aromatic-val">1</span></div>
-            </div>
-            
-            <div class="control-group">
-                <label for="heavy">Heavy Atoms</label>
-                <input type="range" id="heavy" min="5" max="100" step="1" value="30">
-                <div class="value-display"><span id="heavy-val">30</span></div>
+
+            <div>
+                <label>Initial Concentration Right (C2)</label><br>
+                <input type="number" id="C2" value="0.0" step="0.01" />
             </div>
         </div>
-        
-        <div class="results">
-            <div class="result-item">
-                <span class="result-label">Predicted LogBB Value:</span>
-                <span class="result-value" id="logbb-result">0.00</span>
+
+        <div class="input-row">
+            <div>
+                <label>Membrane Thickness (dx)</label><br>
+                <input type="number" id="dx" value="1.0" step="0.01" />
             </div>
-            <div class="result-item">
-                <span class="result-label">Brain/Blood Concentration Ratio:</span>
-                <span class="result-value" id="ratio-result">1.00</span>
-            </div>
-            <div class="result-item">
-                <span class="result-label">BBB Permeability:</span>
-                <span class="result-value" id="permeability-result" style="color: #28a745;">Crosses BBB</span>
+
+            <div>
+                <label>Time Step (dt)</label><br>
+                <input type="number" id="dt" value="0.1" step="0.01" />
             </div>
         </div>
-        
-        <div class="interpretation" id="interpretation">
-            <h3>📊 Interpretation</h3>
-            <p id="interpretation-text"></p>
-        </div>
-        
-        <div class="simulation-container">
-            <div class="simulation-title">🔬 BBB Permeability Simulation</div>
-            <canvas id="simulationCanvas" width="1200" height="500"></canvas>
-            
-            <div class="stats">
-                <div class="stat-item">
-                    <div class="stat-label">Bloodstream</div>
-                    <div class="stat-value" id="blood-count">50</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Successful Crossings</div>
-                    <div class="stat-value" id="crossing-count">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Brain</div>
-                    <div class="stat-value" id="brain-count">0</div>
-                </div>
-            </div>
-            
-            <div class="simulation-controls">
-                <button class="sim-button start" id="startBtn">▶ Start Simulation</button>
-                <button class="sim-button stop" id="stopBtn">⏸ Pause</button>
-                <button class="sim-button reset" id="resetBtn">↻ Reset</button>
-            </div>
-        </div>
+
+        <button id="runBtn">Run Simulation</button>
+
+        <canvas id="simulationCanvas"></canvas>
     </div>
-    
+
     <script>
-        // Regression coefficients from the model
-        const coefficients = {
-            intercept: 0.2407,
-            MolLogP: -0.0115,
-            MolWt: -0.0013,
-            TPSA: -0.0133,
-            FC: 0.0172,
-            AromaticRings: -0.1323,
-            HeavyAtoms: 0.0512
-        };
-        
-        // Get all slider elements
-        const sliders = {
-            molLogP: document.getElementById('molLogP'),
-            molWt: document.getElementById('molWt'),
-            tpsa: document.getElementById('tpsa'),
-            fc: document.getElementById('fc'),
-            aromatic: document.getElementById('aromatic'),
-            heavy: document.getElementById('heavy')
-        };
-        
-        // Simulation variables
-        const canvas = document.getElementById('simulationCanvas');
-        const ctx = canvas.getContext('2d');
-        let particles = [];
-        let animationId = null;
-        let isRunning = false;
-        let crossingProbability = 0.5;
-        let totalCrossings = 0;
-        
-        // Particle class
-        class Particle {
-            constructor(side) {
-                this.radius = 6;
-                this.side = side; // 'blood' or 'brain'
-                
-                // Position particles on correct side
-                if (side === 'blood') {
-                    this.x = Math.random() * (canvas.width / 2 - 40) + 20;
-                    this.color = '#dc3545'; // Red for blood
-                } else {
-                    this.x = Math.random() * (canvas.width / 2 - 40) + canvas.width / 2 + 20;
-                    this.color = '#667eea'; // Purple for brain
-                }
-                
-                this.y = Math.random() * (canvas.height - 40) + 20;
-                this.vx = (Math.random() - 0.5) * 4;
-                this.vy = (Math.random() - 0.5) * 4;
-            }
-            
-            update() {
-                // Update position
-                this.x += this.vx;
-                this.y += this.vy;
-                
-                // Bounce off top and bottom
-                if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) {
-                    this.vy *= -1;
-                    this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
-                }
-                
-                // Handle barrier collision (center line)
-                const barrierX = canvas.width / 2;
-                const barrierThickness = 8;
-                
-                if (this.side === 'blood') {
-                    // Coming from blood side (left)
-                    if (this.x + this.radius > barrierX - barrierThickness / 2) {
-                        // Hit the barrier
-                        if (Math.random() < crossingProbability) {
-                            // Successfully cross!
-                            this.side = 'brain';
-                            this.color = '#667eea';
-                            this.x = barrierX + barrierThickness / 2 + this.radius;
-                            totalCrossings++;
-                            updateStats();
-                        } else {
-                            // Bounce back
-                            this.vx *= -1;
-                            this.x = barrierX - barrierThickness / 2 - this.radius;
-                        }
-                    }
-                    // Bounce off left wall
-                    if (this.x - this.radius < 0) {
-                        this.vx *= -1;
-                        this.x = this.radius;
-                    }
-                } else {
-                    // Coming from brain side (right)
-                    if (this.x - this.radius < barrierX + barrierThickness / 2) {
-                        // Hit barrier from brain side - just bounce
-                        this.vx *= -1;
-                        this.x = barrierX + barrierThickness / 2 + this.radius;
-                    }
-                    // Bounce off right wall
-                    if (this.x + this.radius > canvas.width) {
-                        this.vx *= -1;
-                        this.x = canvas.width - this.radius;
-                    }
-                }
-            }
-            
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            }
-        }
-        
-        function initParticles() {
-            particles = [];
-            totalCrossings = 0;
-            // Start with 50 particles in bloodstream
-            for (let i = 0; i < 50; i++) {
-                particles.push(new Particle('blood'));
-            }
-            updateStats();
-        }
-        
-        function drawBarrier() {
-            const barrierX = canvas.width / 2;
-            const barrierThickness = 8;
-            
-            // Draw barrier
-            ctx.fillStyle = '#2c3e50';
-            ctx.fillRect(barrierX - barrierThickness / 2, 0, barrierThickness, canvas.height);
-            
-            // Draw labels
-            ctx.font = 'bold 24px Arial';
-            ctx.textAlign = 'center';
-            
-            // Bloodstream label
-            ctx.fillStyle = '#dc3545';
-            ctx.fillText('BLOODSTREAM', canvas.width / 4, 40);
-            
-            // Brain label
-            ctx.fillStyle = '#667eea';
-            ctx.fillText('BRAIN', (canvas.width / 4) * 3, 40);
-            
-            // BBB label on barrier
-            ctx.save();
-            ctx.translate(barrierX, canvas.height / 2);
-            ctx.rotate(-Math.PI / 2);
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 16px Arial';
-            ctx.fillText('BLOOD-BRAIN BARRIER', 0, 5);
-            ctx.restore();
-        }
-        
-        function updateStats() {
-            const bloodCount = particles.filter(p => p.side === 'blood').length;
-            const brainCount = particles.filter(p => p.side === 'brain').length;
-            
-            document.getElementById('blood-count').textContent = bloodCount;
-            document.getElementById('brain-count').textContent = brainCount;
-            document.getElementById('crossing-count').textContent = totalCrossings;
-        }
-        
-        function animate() {
+        const canvas = document.getElementById("simulationCanvas");
+        const ctx = canvas.getContext("2d");
+
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+
+        function drawConcentrations(C_left, C_right) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            drawBarrier();
-            
-            particles.forEach(particle => {
-                particle.update();
-                particle.draw();
-            });
-            
-            if (isRunning) {
-                animationId = requestAnimationFrame(animate);
-            }
+
+            const mid = canvas.width / 2;
+
+            // Left region (C1)
+            ctx.fillStyle = `rgba(0,0,255,${C_left})`;
+            ctx.fillRect(0, 0, mid, canvas.height);
+
+            // Right region (C2)
+            ctx.fillStyle = `rgba(255,0,0,${C_right})`;
+            ctx.fillRect(mid, 0, mid, canvas.height);
         }
-        
-        function calculateLogBB() {
-            const values = {
-                molLogP: parseFloat(sliders.molLogP.value),
-                molWt: parseFloat(sliders.molWt.value),
-                tpsa: parseFloat(sliders.tpsa.value),
-                fc: parseFloat(sliders.fc.value),
-                aromatic: parseFloat(sliders.aromatic.value),
-                heavy: parseFloat(sliders.heavy.value)
-            };
-            
-            // Update displays
-            document.getElementById('molLogP-val').textContent = values.molLogP.toFixed(1);
-            document.getElementById('molWt-val').textContent = values.molWt;
-            document.getElementById('tpsa-val').textContent = values.tpsa;
-            document.getElementById('fc-val').textContent = values.fc;
-            document.getElementById('aromatic-val').textContent = values.aromatic;
-            document.getElementById('heavy-val').textContent = values.heavy;
-            
-            // Calculate LogBB using the regression equation
-            const logBB = coefficients.intercept +
-                         (coefficients.MolLogP * values.molLogP) +
-                         (coefficients.MolWt * values.molWt) +
-                         (coefficients.TPSA * values.tpsa) +
-                         (coefficients.FC * values.fc) +
-                         (coefficients.AromaticRings * values.aromatic) +
-                         (coefficients.HeavyAtoms * values.heavy);
-            
-            const ratio = Math.pow(10, logBB);
-            
-            // Calculate crossing probability (sigmoid function for smooth probability)
-            // Maps logBB to probability between 0.05 and 0.95
-            crossingProbability = 1 / (1 + Math.exp(-logBB * 2));
-            crossingProbability = Math.max(0.05, Math.min(0.95, crossingProbability));
-            
-            // Update results
-            document.getElementById('logbb-result').textContent = logBB.toFixed(3);
-            document.getElementById('ratio-result').textContent = ratio.toFixed(3);
-            
-            const permeabilityEl = document.getElementById('permeability-result');
-            if (logBB > 0) {
-                permeabilityEl.textContent = 'Crosses BBB ✓';
-                permeabilityEl.style.color = '#28a745';
-            } else if (logBB > -0.5) {
-                permeabilityEl.textContent = 'Moderate Permeability';
-                permeabilityEl.style.color = '#ffc107';
-            } else {
-                permeabilityEl.textContent = 'Poor BBB Penetration ✗';
-                permeabilityEl.style.color = '#dc3545';
+
+        document.getElementById("runBtn").addEventListener("click", () => {
+            let D = parseFloat(document.getElementById("D").value);
+            let C1 = parseFloat(document.getElementById("C1").value);
+            let C2 = parseFloat(document.getElementById("C2").value);
+            let dx = parseFloat(document.getElementById("dx").value);
+            let dt = parseFloat(document.getElementById("dt").value);
+
+            function step() {
+                let flux = -D * ((C2 - C1) / dx);
+
+                C1 += flux * dt;
+                C2 -= flux * dt;
+
+                drawConcentrations(Math.max(0,C1), Math.max(0,C2));
+                requestAnimationFrame(step);
             }
-            
-            // Update interpretation
-            let interpretation = '';
-            if (logBB > 0) {
-                interpretation = `This drug shows good BBB permeability with a LogBB of ${logBB.toFixed(3)}. 
-                The brain concentration is expected to be ${ratio.toFixed(2)} times the blood concentration. 
-                In the simulation, particles have a ${(crossingProbability * 100).toFixed(1)}% chance of crossing the barrier with each collision.`;
-            } else if (logBB > -0.5) {
-                interpretation = `This drug shows moderate BBB permeability with a LogBB of ${logBB.toFixed(3)}. 
-                The brain concentration is ${(ratio * 100).toFixed(1)}% of the blood concentration. 
-                Particles have a ${(crossingProbability * 100).toFixed(1)}% chance of crossing with each barrier collision.`;
-            } else {
-                interpretation = `This drug shows poor BBB permeability with a LogBB of ${logBB.toFixed(3)}. 
-                The brain concentration is only ${(ratio * 100).toFixed(1)}% of the blood concentration. 
-                Particles have just a ${(crossingProbability * 100).toFixed(1)}% chance of crossing the barrier.`;
-            }
-            
-            document.getElementById('interpretation-text').textContent = interpretation;
-        }
-        
-        // Event listeners
-        Object.values(sliders).forEach(slider => {
-            slider.addEventListener('input', calculateLogBB);
+
+            step();
         });
-        
-        document.getElementById('startBtn').addEventListener('click', () => {
-            if (!isRunning) {
-                isRunning = true;
-                animate();
-            }
-        });
-        
-        document.getElementById('stopBtn').addEventListener('click', () => {
-            isRunning = false;
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-            }
-        });
-        
-        document.getElementById('resetBtn').addEventListener('click', () => {
-            isRunning = false;
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-            }
-            initParticles();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawBarrier();
-            particles.forEach(p => p.draw());
-        });
-        
-        // Initialize
-        calculateLogBB();
-        initParticles();
-        drawBarrier();
-        particles.forEach(p => p.draw());
+
+        drawConcentrations(1.0, 0.0);
     </script>
 </body>
 </html>
