@@ -1,388 +1,324 @@
 /* simulate.js
- - Loads B3DB_regression.tsv
- - Computes OLS regression for LogBB
- - Syncs sliders & dropdown
- - Runs a two-compartment Fick's Law simulation
- - Produces Plotly plot of blood vs. brain concentration
+  - Robust TSV loader & header matching
+  - OLS regression (trained on rows with experimental logBB)
+  - Sliders update instantly when dropdown changes
+  - Two-compartment RK4 simulation for both predicted & experimental LogBB
+  - Plotly visualization
 */
 
 (async function(){
-  /***************************************
-   *             DATA LOADING
-   ***************************************/
-  async function loadTSV(path){
-    const res = await fetch(path);
-    if(!res.ok) throw new Error("Could not fetch TSV at " + path);
-    const txt = await res.text();
+  // --- helpers ---
+  function toNum(x){ return (x === undefined || x === '') ? NaN : +x; }
 
-    const lines = txt.trim().split(/\r?\n/);
-    const headers = lines[0].split("\t");
+  async function fetchText(path){
+    const r = await fetch(path);
+    if(!r.ok) throw new Error('Failed to fetch ' + path + ' (' + r.status + ')');
+    return r.text();
+  }
 
-    const rows = lines.slice(1).map(line => {
-      const cols = line.split("\t");
+  function parseTSV(txt){
+    const lines = txt.trim().split(/\r?\n/).filter(Boolean);
+    const hdr = lines[0].split('\t').map(h => h.trim());
+    const rows = lines.slice(1).map(l => {
+      const cols = l.split('\t');
       const obj = {};
-      headers.forEach((h,i) => obj[h] = cols[i]);
+      hdr.forEach((h,i) => obj[h] = (i < cols.length) ? cols[i] : '');
       return obj;
     });
-
-    return { headers, rows };
+    return { hdr, rows };
   }
 
-  function toNum(v){
-    return (v === "" || v === undefined) ? NaN : +v;
-  }
-
-  /***************************************
-   *         MATRIX OPERATIONS (OLS)
-   ***************************************/
-  function transpose(A){
-    return A[0].map((_,i)=> A.map(row => row[i]));
-  }
+  // Matrix utilities for OLS
+  function transpose(A){ return A[0].map((_,i)=> A.map(r=> r[i])); }
 
   function matMul(A,B){
     const m=A.length, n=A[0].length, p=B[0].length;
-    const result = Array.from({length:m}, () => Array(p).fill(0));
-
+    const C = Array.from({length:m}, ()=> Array(p).fill(0));
     for(let i=0;i<m;i++){
       for(let k=0;k<n;k++){
-        const aik = A[i][k];
-        for(let j=0;j<p;j++){
-          result[i][j] += aik * B[k][j];
-        }
+        const a=A[i][k];
+        for(let j=0;j<p;j++) C[i][j] += a * B[k][j];
       }
     }
-    return result;
+    return C;
   }
 
-  function invertMatrix(M){
-    const n = M.length;
-    const A = M.map(r=> r.slice());
-    const I = Array.from({length:n}, (_,i)=>
-      Array.from({length:n}, (__,j)=> (i===j ? 1 : 0))
-    );
-
+  function invert(M){
+    const n=M.length;
+    const A=M.map(r=> r.slice());
+    const I=Array.from({length:n}, (_,i)=> Array.from({length:n}, (__,j)=> i===j?1:0));
     for(let i=0;i<n;i++){
-      let pivot = A[i][i];
-      if(Math.abs(pivot) < 1e-12){
+      if(Math.abs(A[i][i]) < 1e-12){
         let swap = i+1;
-        while(swap<n && Math.abs(A[swap][i]) < 1e-12) swap++;
-        if(swap === n) throw new Error("Singular matrix");
+        while(swap<n && Math.abs(A[swap][i])<1e-12) swap++;
+        if(swap===n) throw new Error('Singular matrix in inversion');
         [A[i], A[swap]] = [A[swap], A[i]];
         [I[i], I[swap]] = [I[swap], I[i]];
-        pivot = A[i][i];
       }
-
-      for(let j=0;j<n;j++){
-        A[i][j] /= pivot;
-        I[i][j] /= pivot;
-      }
-
+      const piv = A[i][i];
+      for(let j=0;j<n;j++){ A[i][j] /= piv; I[i][j] /= piv; }
       for(let r=0;r<n;r++){
-        if(r === i) continue;
+        if(r===i) continue;
         const f = A[r][i];
-        for(let c=0;c<n;c++){
-          A[r][c] -= f * A[i][c];
-          I[r][c] -= f * I[i][c];
-        }
+        for(let c=0;c<n;c++){ A[r][c] -= f * A[i][c]; I[r][c] -= f * I[i][c]; }
       }
     }
-
     return I;
   }
 
   function ols(X, y){
     const Xt = transpose(X);
     const XtX = matMul(Xt, X);
-    const XtXinv = invertMatrix(XtX);
-    const Xty = matMul(Xt, y.map(v => [v]));
-    const betaMatrix = matMul(XtXinv, Xty);
-    return betaMatrix.map(row => row[0]);
+    const XtXinv = invert(XtX);
+    const Xty = matMul(Xt, y.map(v=>[v]));
+    const betaMat = matMul(XtXinv, Xty);
+    return betaMat.map(r=> r[0]);
   }
 
-  /***************************************
-   *       SIMULATION (Fick's Law)
-   ***************************************/
-  function simulateTwoCompartment(logBB, P_eff, Tmax, dt){
+  // RK4 two-compartment simulate
+  function simulateTwoComp(logBB, P_eff, Tmax, dt){
     const K = Math.pow(10, logBB);
-
     const steps = Math.max(2, Math.floor(Tmax/dt)+1);
     const t = new Array(steps);
     const Cb = new Array(steps);
     const Cbr = new Array(steps);
-
-    let cb = 1.0;
-    let cbr = 0.0;
-
-    t[0] = 0;
-    Cb[0] = cb;
-    Cbr[0] = cbr;
-
-    function rhs([cB, cBr]){
-      const dcb  = -P_eff * (cB - (cBr / K));
-      const dcbr =  P_eff * (cB - (cBr / K));
+    let cb = 1.0, cbr = 0.0;
+    t[0]=0; Cb[0]=cb; Cbr[0]=cbr;
+    function rhs([cB, cBr]) {
+      const dcb = -P_eff * (cB - (cBr / K));
+      const dcbr = P_eff * (cB - (cBr / K));
       return [dcb, dcbr];
     }
-
     for(let i=1;i<steps;i++){
-      const time = i * dt;
-
-      // RK4
       const s0 = [cb, cbr];
       const k1 = rhs(s0);
-
-      const s1 = [ cb + 0.5*dt*k1[0], cbr + 0.5*dt*k1[1] ];
+      const s1 = [ cb + 0.5*k1[0]*dt, cbr + 0.5*k1[1]*dt ];
       const k2 = rhs(s1);
-
-      const s2 = [ cb + 0.5*dt*k2[0], cbr + 0.5*dt*k2[1] ];
+      const s2 = [ cb + 0.5*k2[0]*dt, cbr + 0.5*k2[1]*dt ];
       const k3 = rhs(s2);
-
-      const s3 = [ cb + dt*k3[0], cbr + dt*k3[1] ];
+      const s3 = [ cb + k3[0]*dt, cbr + k3[1]*dt ];
       const k4 = rhs(s3);
-
       cb  = cb  + (dt/6)*(k1[0] + 2*k2[0] + 2*k3[0] + k4[0]);
       cbr = cbr + (dt/6)*(k1[1] + 2*k2[1] + 2*k3[1] + k4[1]);
-
-      t[i] = time;
-      Cb[i] = cb;
-      Cbr[i] = cbr;
+      t[i] = i*dt;
+      Cb[i] = cb; Cbr[i]=cbr;
     }
-
     return { t, Cb, Cbr };
   }
 
-  /***************************************
-   *           UI ELEMENTS
-   ***************************************/
-  const controlIds = ['MolLogP','MolWt','TPSA','FC','Aromatic','Heavy'];
+  // --- UI refs ---
+  const ids = ['MolLogP','MolWt','TPSA','FC','Aromatic','Heavy'];
   const ui = {};
+  ids.forEach(id => ui[id] = document.getElementById(id));
+  ui.P_eff = document.getElementById('P_eff');
+  ui.Tmax  = document.getElementById('Tmax');
 
-  controlIds.forEach(id => ui[id] = document.getElementById(id));
-  ui["P_eff"] = document.getElementById("P_eff");
-  ui["Tmax"] = document.getElementById("Tmax");
+  const out = {};
+  out.MolLogP = document.getElementById('MolLogP_val');
+  out.MolWt = document.getElementById('MolWt_val');
+  out.TPSA = document.getElementById('TPSA_val');
+  out.FC = document.getElementById('FC_val');
+  out.Aromatic = document.getElementById('Aromatic_val');
+  out.Heavy = document.getElementById('Heavy_val');
 
-  const outputEls = {
-    MolLogP: document.getElementById("MolLogP_val"),
-    MolWt: document.getElementById("MolWt_val"),
-    TPSA: document.getElementById("TPSA_val"),
-    FC: document.getElementById("FC_val"),
-    Aromatic: document.getElementById("Aromatic_val"),
-    Heavy: document.getElementById("Heavy_val")
-  };
+  const drugSel = document.getElementById('drug-select');
+  const runBtn = document.getElementById('runBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const modelLogbbEl = document.getElementById('model_logbb');
+  const expLogbbEl = document.getElementById('exp_logbb');
 
-  const drugSelect = document.getElementById("drug-select");
-  const runBtn = document.getElementById("runBtn");
-  const resetBtn = document.getElementById("resetBtn");
-
-  const modelLogbbEl = document.getElementById("model_logbb");
-  const expLogbbEl = document.getElementById("exp_logbb");
-
-  // update slider outputs live
-  controlIds.forEach(id => {
-    ui[id].addEventListener("input", () => {
-      outputEls[id].textContent = ui[id].value;
-    });
-    outputEls[id].textContent = ui[id].value; // initial display
+  // make slider outputs visible and reactive
+  ids.forEach(id => {
+    if(ui[id]){
+      ui[id].addEventListener('input', ()=> out[id].textContent = ui[id].value);
+      out[id].textContent = ui[id].value;
+    }
   });
 
-  /***************************************
-   *               LOAD TSV
-   ***************************************/
-  let tsv;
+  // --- load TSV ---
+  let parsedRows = [];
   try{
-    tsv = await loadTSV("./B3DB_regression.tsv");
-  } catch(e){
-    console.error(e);
-    document.getElementById("plot").innerHTML =
-      "<p style='color:#c00'>Error loading B3DB_regression.tsv</p>";
+    const txt = await fetchText('./B3DB_regression.tsv');
+    const parsed = parseTSV(txt);
+    const hdr = parsed.hdr;
+    const rows = parsed.rows;
+
+    // flexible header matching
+    function col(candidates){
+      for(const c of candidates){
+        const exact = hdr.find(h => h === c);
+        if(exact) return exact;
+      }
+      // normalized matching
+      for(const c of candidates){
+        const norm = c.toLowerCase().replace(/\W/g,'');
+        const found = hdr.find(h => h.toLowerCase().replace(/\W/g,'') === norm);
+        if(found) return found;
+      }
+      return null;
+    }
+
+    const col_name = col(['compound_name','compound','name']);
+    const col_MolLogP = col(['MolLogP','LogP','molLogP']);
+    const col_MolWt = col(['MolWt','MolWeight','MolecularWeight']);
+    const col_TPSA = col(['TPSA','TopologicalPolarSurfaceArea']);
+    const col_FC = col(['FC','FormalCharge','Formal_Charge']);
+    const col_Aromatic = col(['Aromatic Rings','Aromatic','aromatic_rings']);
+    const col_Heavy = col(['Heavy Atoms','HeavyAtoms','heavy_atoms']);
+    const col_logBB = col(['logBB','LogBB','logBB_exp','logBB_experimental']);
+
+    parsedRows = rows.map(r => ({
+      name: r[col_name] ?? r[Object.keys(r)[0]] ?? '',
+      MolLogP: toNum(r[col_MolLogP]),
+      MolWt: toNum(r[col_MolWt]),
+      TPSA: toNum(r[col_TPSA]),
+      FC: toNum(r[col_FC]),
+      Aromatic: toNum(r[col_Aromatic]),
+      Heavy: toNum(r[col_Heavy]),
+      logBB_exp: col_logBB ? toNum(r[col_logBB]) : NaN
+    }));
+  }catch(err){
+    console.error('Failed to load TSV', err);
+    document.getElementById('plot').innerHTML = '<div style="color:#900;padding:16px;">Failed to load B3DB_regression.tsv — check path and CORS.</div>';
     return;
   }
 
-  const { rows, headers } = tsv;
-
-  // Attempt flexible column matching
-  function findColumn(candidates){
-    for(const c of candidates){
-      if(headers.includes(c)) return c;
-      const match = headers.find(h => h.toLowerCase().replace(/\s+/g,"") === c.toLowerCase().replace(/\s+/g,""));
-      if(match) return match;
-    }
-    return null;
-  }
-
-  const colName      = findColumn(["compound_name","compound","name"]);
-  const colMolLogP   = findColumn(["MolLogP","LogP"]);
-  const colMolWt     = findColumn(["MolWt","MolecularWeight"]);
-  const colTPSA      = findColumn(["TPSA"]);
-  const colFC        = findColumn(["FC","FormalCharge"]);
-  const colAromatic  = findColumn(["Aromatic Rings","Aromatic"]);
-  const colHeavy     = findColumn(["Heavy Atoms","HeavyAtoms"]);
-  const colLogBB     = findColumn(["logBB","logBB_exp","LogBB"]);
-
-  const parsedRows = rows.map(r => ({
-    name:     r[colName],
-    MolLogP:  toNum(r[colMolLogP]),
-    MolWt:    toNum(r[colMolWt]),
-    TPSA:     toNum(r[colTPSA]),
-    FC:       toNum(r[colFC]),
-    Aromatic: toNum(r[colAromatic]),
-    Heavy:    toNum(r[colHeavy]),
-    logBB_exp: colLogBB ? toNum(r[colLogBB]) : NaN
-  }));
-
-  // Populate dropdown
-  const uniqueNames = Array.from(new Set(parsedRows.map(r => r.name))).filter(Boolean).sort();
-  uniqueNames.forEach(n => {
-    const opt = document.createElement("option");
-    opt.value = n;
-    opt.textContent = n;
-    drugSelect.appendChild(opt);
+  // populate dropdown
+  const names = Array.from(new Set(parsedRows.map(r => r.name))).filter(Boolean).sort();
+  drugSel.innerHTML = '';
+  names.forEach(n => {
+    const o = document.createElement('option'); o.value = n; o.textContent = n; drugSel.appendChild(o);
   });
 
-  /***************************************
-   *       PREPARE DATA FOR OLS
-   ***************************************/
-  const X = [];
-  const y = [];
-
+  // compute OLS but only using rows with experimental logBB defined
+  const X = [], y = [];
   parsedRows.forEach(r => {
-    if([r.MolLogP, r.MolWt, r.TPSA, r.FC, r.Aromatic, r.Heavy].some(v => Number.isNaN(v))) return;
+    if([r.MolLogP,r.MolWt,r.TPSA,r.FC,r.Aromatic,r.Heavy].some(v=> Number.isNaN(v))) return;
+    if(Number.isNaN(r.logBB_exp)) return; // train only on rows with experimental logBB
     X.push([1, r.MolLogP, r.MolWt, r.TPSA, r.FC, r.Aromatic, r.Heavy]);
     y.push(r.logBB_exp);
   });
 
-  // keep only rows with known logBB for training
-  const X_train = [], y_train = [];
-  for(let i=0;i<X.length;i++){
-    if(!Number.isNaN(y[i])){
-      X_train.push(X[i]);
-      y_train.push(y[i]);
-    }
-  }
-
-  let beta;
+  let beta = null;
   try{
-    beta = ols(X_train, y_train);
-  } catch(e){
-    console.error("OLS failed:", e);
+    if(X.length >= 6){ beta = ols(X,y); console.log('beta', beta); }
+    else console.warn('Not enough training rows for OLS: found', X.length);
+  }catch(e){
+    console.warn('OLS error', e);
     beta = null;
   }
 
-  function predictLogBB(features){
+  function predict(features){
     if(!beta) return NaN;
     const vals = [1, features.MolLogP, features.MolWt, features.TPSA, features.FC, features.Aromatic, features.Heavy];
-    return vals.reduce((sum, v, i) => sum + v*beta[i], 0);
+    return vals.reduce((s,v,i)=> s + (beta[i]||0)*v, 0);
   }
 
-  function getDrugRow(name){
-    return parsedRows.find(r => r.name === name);
+  function findRow(name){
+    return parsedRows.find(r=> r.name === name);
   }
 
-  function setSlidersFromRow(r){
-    ui.MolLogP.value = r.MolLogP;
-    ui.MolWt.value   = r.MolWt;
-    ui.TPSA.value    = r.TPSA;
-    ui.FC.value      = r.FC;
-    ui.Aromatic.value = r.Aromatic;
-    ui.Heavy.value   = r.Heavy;
-
-    controlIds.forEach(id => outputEls[id].textContent = ui[id].value);
+  function applyRowToSliders(row){
+    if(!row) return;
+    // guard against NaN: only set sliders when numeric
+    if(Number.isFinite(row.MolLogP)) ui.MolLogP.value = row.MolLogP;
+    if(Number.isFinite(row.MolWt))   ui.MolWt.value = row.MolWt;
+    if(Number.isFinite(row.TPSA))    ui.TPSA.value = row.TPSA;
+    if(Number.isFinite(row.FC))      ui.FC.value = row.FC;
+    if(Number.isFinite(row.Aromatic))ui.Aromatic.value = row.Aromatic;
+    if(Number.isFinite(row.Heavy))   ui.Heavy.value = row.Heavy;
+    // update outputs
+    ids.forEach(id => out[id].textContent = ui[id].value);
   }
 
-  /***************************************
-   *           UPDATE TEXT LABELS
-   ***************************************/
-  function updateModelDisplay(){
+  // update textual logbb display
+  function updateLogbbText(){
     const features = {
       MolLogP: +ui.MolLogP.value,
-      MolWt:   +ui.MolWt.value,
-      TPSA:    +ui.TPSA.value,
-      FC:      +ui.FC.value,
-      Aromatic:+ui.Aromatic.value,
-      Heavy:   +ui.Heavy.value
+      MolWt: +ui.MolWt.value,
+      TPSA: +ui.TPSA.value,
+      FC: +ui.FC.value,
+      Aromatic: +ui.Aromatic.value,
+      Heavy: +ui.Heavy.value
     };
-
-    const predicted = predictLogBB(features);
-
-    const drug = getDrugRow(drugSelect.value);
-    const exp  = (drug && Number.isFinite(drug.logBB_exp)) ? drug.logBB_exp : null;
-
-    modelLogbbEl.textContent = Number.isFinite(predicted) ? predicted.toFixed(2) : "—";
-    expLogbbEl.textContent   = exp !== null ? exp.toFixed(2) : "—";
-
-    return { predicted, exp };
+    const model = predict(features);
+    const row = findRow(drugSel.value);
+    const exp = (row && Number.isFinite(row.logBB_exp)) ? row.logBB_exp : null;
+    modelLogbbEl.textContent = Number.isFinite(model) ? model.toFixed(3) : '—';
+    expLogbbEl.textContent = exp !== null ? exp.toFixed(3) : '—';
+    return {model, exp};
   }
 
-  /***************************************
-   *               PLOTTING
-   ***************************************/
-  function runSimulation(){
-    const { predicted, exp } = updateModelDisplay();
-    const P_eff = +ui.P_eff.value || 0.15;
-    const Tmax  = +ui.Tmax.value || 24;
+  // simulation + plotting
+  function run(){
+    const {model, exp} = updateLogbbText();
+    const P_eff = toNum(ui.P_eff.value) || 0.15;
+    const Tmax = Math.max(1, toNum(ui.Tmax.value) || 24);
     const dt = 0.05;
 
     const traces = [];
-
-    if(Number.isFinite(predicted)){
-      const out = simulateTwoCompartment(predicted, P_eff, Tmax, dt);
-      traces.push({
-        x: out.t, y: out.Cb, mode:"lines",
-        name:"Blood (Model)", line:{width:2}
-      });
-      traces.push({
-        x: out.t, y: out.Cbr, mode:"lines",
-        name:"Brain (Model)", line:{width:2}
-      });
+    if(Number.isFinite(model)){
+      const s = simulateTwoComp(model, P_eff, Tmax, dt);
+      traces.push({ x:s.t, y:s.Cb, name:'Blood (Model)', mode:'lines', line:{width:2, color:'#1f77b4'} });
+      traces.push({ x:s.t, y:s.Cbr, name:'Brain (Model)', mode:'lines', line:{width:2, color:'#ff7f0e'} });
     }
 
     if(Number.isFinite(exp)){
-      const outExp = simulateTwoCompartment(exp, P_eff, Tmax, dt);
-      traces.push({
-        x: outExp.t, y: outExp.Cb, mode:"lines",
-        name:"Blood (Experimental)", line:{dash:"dash", width:2}
-      });
-      traces.push({
-        x: outExp.t, y: outExp.Cbr, mode:"lines",
-        name:"Brain (Experimental)", line:{dash:"dash", width:2}
-      });
+      const s2 = simulateTwoComp(exp, P_eff, Tmax, dt);
+      traces.push({ x:s2.t, y:s2.Cb, name:'Blood (Experimental)', mode:'lines', line:{dash:'dashdot', width:2, color:'#1f77b4'} });
+      traces.push({ x:s2.t, y:s2.Cbr, name:'Brain (Experimental)', mode:'lines', line:{dash:'dashdot', width:2, color:'#ff7f0e'} });
+    }
+
+    // if we have experimental logBB but want to show a marker for observed ratio:
+    const row = findRow(drugSel.value);
+    if(row && Number.isFinite(row.logBB_exp)){
+      // add a marker at t=0 showing brain/blood ratio = 10^logBB
+      const ratio = Math.pow(10, row.logBB_exp);
+      // normalized representation: if blood=1 then brain=ratio (might exceed 1), so we show a small marker on right-hand axis.
+      // Instead, add text annotation showing experimental ratio
+      traces.push({ x:[0], y:[ Math.min(1, ratio/(ratio+1)) ], name:'Exp Ratio marker', mode:'markers', marker:{size:8, color:'#2ca02c'} });
     }
 
     const layout = {
-      title: "Fick's Law Simulation",
-      xaxis: { title: "Time (h)" },
-      yaxis: { title: "Concentration (normalized)", range: [0,1.05] },
-      legend: { orientation:"h" },
-      margin: { t:50 }
+      title: { text: "Blood & Brain concentrations — Model vs Experimental", font:{size:16} },
+      xaxis: { title:'Time (h)' },
+      yaxis: { title:'Concentration (normalized)', range:[0,1.05] },
+      legend: { orientation:'h', y:1.08 },
+      margin: { t:70 }
     };
 
-    Plotly.newPlot("plot", traces, layout, {responsive:true});
+    Plotly.react('plot', traces, layout, {responsive:true});
   }
 
-  /***************************************
-   *       INITIALIZATION & EVENTS
-   ***************************************/
-  drugSelect.addEventListener("change", () => {
-    const row = getDrugRow(drugSelect.value);
-    if(row) setSlidersFromRow(row);
-    updateModelDisplay();
+  // events
+  drugSel.addEventListener('change', () => {
+    const r = findRow(drugSel.value);
+    if(r) applyRowToSliders(r);
+    updateLogbbText();
+    // optionally auto-run
+    run();
   });
 
-  runBtn.addEventListener("click", runSimulation);
+  ids.forEach(id => ui[id].addEventListener('input', ()=>{
+    out[id].textContent = ui[id].value;
+    updateLogbbText();
+  }));
 
-  resetBtn.addEventListener("click", () => {
-    const row = getDrugRow(drugSelect.value);
-    if(row) setSlidersFromRow(row);
-    updateModelDisplay();
+  runBtn.addEventListener('click', run);
+  resetBtn.addEventListener('click', ()=>{
+    const r = findRow(drugSel.value);
+    if(r) applyRowToSliders(r);
+    updateLogbbText();
   });
 
-  // Set default drug
-  if(uniqueNames.length > 0){
-    drugSelect.value = uniqueNames[0];
-    const row = getDrugRow(uniqueNames[0]);
-    setSlidersFromRow(row);
-    updateModelDisplay();
+  // initialize selection
+  if(names.length>0){
+    drugSel.value = names[0];
+    const r = findRow(names[0]);
+    if(r) applyRowToSliders(r);
   }
 
-  runSimulation();
+  // initial run
+  run();
 
-})();
+})(); // end IIFE
