@@ -1,0 +1,119 @@
+/* simulate.css - minimal styling consistent with BBB site aesthetic */
+
+:root{
+  --bg:#f5f7fb;
+  --card:#ffffff;
+  --accent:#0b66ff;
+  --muted:#6b7280;
+  --radius:12px;
+  --shadow: 0 6px 20px rgba(9,30,66,0.08);
+  --pad:20px;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:#0b1220;
+  -webkit-font-smoothing:antialiased;
+}
+
+.site-nav{
+  background:var(--card);
+  border-bottom:1px solid #e6eef9;
+  padding:12px 24px;
+  box-shadow: 0 1px 0 rgba(16,24,40,0.03);
+}
+.nav-inner{
+  max-width:1100px;
+  margin:0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.brand{ font-weight:700; text-decoration:none; color:var(--accent); font-size:20px;}
+.nav-links a{ margin-left:14px; text-decoration:none; color:var(--muted); }
+.nav-links a.active{ color:var(--accent); font-weight:600; }
+
+.container{
+  max-width:1100px;
+  margin:32px auto;
+  padding:24px;
+}
+
+h1{
+  margin: 0 0 18px 0;
+  font-size:22px;
+}
+
+.controls-grid{
+  display:grid;
+  grid-template-columns: 360px 1fr;
+  gap:20px;
+}
+
+.controls-card{
+  background:var(--card);
+  padding:var(--pad);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+
+.plot-card{
+  background:var(--card);
+  padding:var(--pad);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  min-height:420px;
+  display:flex;
+  flex-direction:column;
+}
+
+.slider-row{
+  margin:10px 0;
+}
+.slider-row label{
+  display:block;
+  font-size:13px;
+  color:var(--muted);
+  margin-bottom:6px;
+}
+.slider-row input[type=range]{ width:100%; }
+
+.small-inputs{
+  display:flex;
+  gap:12px;
+  margin-top:12px;
+  align-items:center;
+}
+.small-inputs label{ font-size:13px; color:var(--muted); }
+.small-inputs input{ width:120px; padding:6px; border-radius:8px; border:1px solid #e6eef9; }
+
+.action-row{
+  margin-top:14px;
+  display:flex;
+  gap:10px;
+}
+#runBtn{
+  background:var(--accent);
+  color:white;
+  border:none;
+  padding:10px 14px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+}
+.secondary{
+  background:transparent;
+  color:var(--accent);
+  border:1px solid rgba(11,102,255,0.12);
+  padding:9px 12px;
+}
+
+.plotly-plot{ width:100%; height:360px; }
+
+.footer-note{ margin-top:12px; color:var(--muted); font-size:13px; }
+@media (max-width:980px){
+  .controls-grid{ grid-template-columns:1fr; }
+  .plot-card{ order:2; }
+}
