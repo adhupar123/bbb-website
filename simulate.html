@@ -3,90 +3,110 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BBB - Fick's Law Simulation</title>
+  <title>BBB Simulation – Fick's Law</title>
 
-  <!-- Plotly CDN -->
+  <!-- Plotly -->
   <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
 
-  <link rel="stylesheet" href="./simulate.css" />
+  <!-- Global site stylesheet -->
+  <link rel="stylesheet" href="./styles.css">
 </head>
 
 <body>
-  <nav class="site-nav">
-    <div class="nav-inner">
-      <a class="brand" href="/">BBB</a>
-      <div class="nav-links">
-        <a href="/index.html">Home</a>
-        <a href="/simulate.html" class="active">Simulate</a>
-        <!-- add others as needed -->
+
+  <!-- NAVIGATION BAR -->
+  <div class="navwrap">
+    <div class="container" style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="brand">
+        <h1>BBB</h1>
+      </div>
+      <div class="mainnav">
+        <a href="index.html">Home</a>
+        <a href="simulate.html" class="active">Simulate</a>
       </div>
     </div>
-  </nav>
+  </div>
 
-  <main class="container">
-    <h1>Fick's Law Simulation &amp; LogBB Prediction</h1>
+  <!-- PAGE CONTENT -->
+  <div class="container">
+    <h2 class="lead">Fick's Law Simulation & LogBB Prediction</h2>
+    <p class="muted">Uses descriptors, regression model, and a two-compartment diffusion simulation.</p>
 
-    <section class="controls-grid">
-      <div class="controls-card">
-        <label for="drug-select">Choose Drug</label>
-        <select id="drug-select"></select>
+    <div class="grid" style="margin-top:20px; grid-template-columns:350px 1fr;">
+      
+      <!-- LEFT CARD: Controls -->
+      <div class="card">
+        <h3 style="margin-top:0;">Parameters</h3>
 
-        <div class="slider-row">
-          <label>MolLogP <output id="MolLogP_val">0</output></label>
-          <input id="MolLogP" type="range" min="-5" max="10" step="0.01" value="0">
+        <label class="muted">Choose Drug</label><br>
+        <select id="drug-select" style="width:100%;padding:8px;margin-bottom:16px;border-radius:8px;border:1px solid #e6ecff;"></select>
+
+        <!-- Sliders -->
+        <div style="margin-bottom:12px;">
+          <label class="muted">MolLogP: <span id="MolLogP_val"></span></label>
+          <input id="MolLogP" type="range" min="-5" max="10" step="0.01" value="0" style="width:100%;">
         </div>
 
-        <div class="slider-row">
-          <label>MolWt <output id="MolWt_val">0</output></label>
-          <input id="MolWt" type="range" min="50" max="1000" step="0.1" value="350">
+        <div style="margin-bottom:12px;">
+          <label class="muted">MolWt: <span id="MolWt_val"></span></label>
+          <input id="MolWt" type="range" min="50" max="1000" step="0.1" value="350" style="width:100%;">
         </div>
 
-        <div class="slider-row">
-          <label>TPSA <output id="TPSA_val">0</output></label>
-          <input id="TPSA" type="range" min="0" max="300" step="0.1" value="70">
+        <div style="margin-bottom:12px;">
+          <label class="muted">TPSA: <span id="TPSA_val"></span></label>
+          <input id="TPSA" type="range" min="0" max="300" step="0.1" value="70" style="width:100%;">
         </div>
 
-        <div class="slider-row">
-          <label>Formal Charge (FC) <output id="FC_val">0</output></label>
-          <input id="FC" type="range" min="-5" max="5" step="1" value="0">
+        <div style="margin-bottom:12px;">
+          <label class="muted">Formal Charge: <span id="FC_val"></span></label>
+          <input id="FC" type="range" min="-5" max="5" step="1" value="0" style="width:100%;">
         </div>
 
-        <div class="slider-row">
-          <label>Aromatic Rings <output id="Aromatic_val">0</output></label>
-          <input id="Aromatic" type="range" min="0" max="10" step="1" value="1">
+        <div style="margin-bottom:12px;">
+          <label class="muted">Aromatic Rings: <span id="Aromatic_val"></span></label>
+          <input id="Aromatic" type="range" min="0" max="10" step="1" value="1" style="width:100%;">
         </div>
 
-        <div class="slider-row">
-          <label>Heavy Atoms <output id="Heavy_val">0</output></label>
-          <input id="Heavy" type="range" min="0" max="200" step="1" value="30">
+        <div style="margin-bottom:12px;">
+          <label class="muted">Heavy Atoms: <span id="Heavy_val"></span></label>
+          <input id="Heavy" type="range" min="0" max="200" step="1" value="30" style="width:100%;">
         </div>
 
-        <div class="small-inputs">
-          <label>Partition eff (P_eff)</label>
-          <input id="P_eff" type="number" step="0.01" value="0.15">
-          <label>Simulation time (h)</label>
-          <input id="Tmax" type="number" step="1" value="24">
+        <!-- Numeric Inputs -->
+        <div class="grid" style="grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;">
+          <div>
+            <label class="muted">P_eff</label>
+            <input id="P_eff" type="number" value="0.15" step="0.01" style="width:100%;padding:8px;border:1px solid #e6ecff;border-radius:8px;">
+          </div>
+          <div>
+            <label class="muted">Time (h)</label>
+            <input id="Tmax" type="number" value="24" step="1" style="width:100%;padding:8px;border:1px solid #e6ecff;border-radius:8px;">
+          </div>
         </div>
 
-        <div class="action-row">
-          <button id="runBtn">Run Simulation</button>
-          <button id="resetBtn" class="secondary">Reset to Drug</button>
+        <!-- Buttons -->
+        <div style="margin-top:20px;">
+          <button id="runBtn" class="btn" style="width:100%;margin-bottom:8px;">Run Simulation</button>
+          <button id="resetBtn" class="btn ghost" style="width:100%;">Reset to Drug</button>
         </div>
       </div>
 
-      <div class="plot-card">
-        <div class="model-info">
-          <div id="modelText">Model LogBB: <strong id="model_logbb">—</strong> &nbsp; Exp LogBB: <strong id="exp_logbb">—</strong></div>
-        </div>
-        <div id="plot" class="plotly-plot"></div>
+      <!-- RIGHT CARD: Plot -->
+      <div class="card">
+        <h3 style="margin-top:0;">Model Output</h3>
+        <p class="muted" id="modelText" style="margin-bottom:8px;">
+          Model LogBB: <strong id="model_logbb">—</strong> |
+          Exp LogBB: <strong id="exp_logbb">—</strong>
+        </p>
+        <div id="plot" style="width:100%;height:400px;"></div>
       </div>
-    </section>
 
-    <footer class="footer-note">
-      <small>Data source: <code>B3DB_regression.tsv</code>. The page computes an OLS regression in-browser and simulates a two-compartment Fick's Law exchange model (blood ↔ brain).</small>
-    </footer>
-  </main>
+    </div> <!-- end grid -->
 
-  <script src="./simulate.js"></script>
+    <p class="muted" style="margin-top:12px;">Uses B3DB_regression.tsv for descriptor data and experimental LogBB.</p>
+
+  </div>
+
+  <script src="simulate.js"></script>
 </body>
 </html>
