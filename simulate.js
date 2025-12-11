@@ -111,13 +111,21 @@
 
   // -------- Wait for RDKit to load --------
   log('Waiting for RDKit to initialize...');
-  await window.initRDKitModule();
-  const RDKit = window.RDKitModule;
-  log('RDKit loaded successfully');
-
-  // Hide loading overlay
-  const loadingEl = document.getElementById('loading');
-  if(loadingEl) loadingEl.style.display = 'none';
+  let RDKit;
+  try {
+    RDKit = await window.initRDKitModule();
+    log('RDKit loaded successfully:', !!RDKit);
+    
+    // Hide loading overlay only after successful load
+    const loadingEl = document.getElementById('loading');
+    if(loadingEl) loadingEl.style.display = 'none';
+  } catch (e) {
+    log('Failed to load RDKit:', e);
+    const loadingEl = document.getElementById('loading');
+    if(loadingEl) loadingEl.style.display = 'none';
+    document.getElementById('plot').innerHTML = `<div style="padding:12px;color:#900">Error: RDKit failed to load. Check console for details.</div>`;
+    return;
+  }
 
   // Function to calculate descriptors from SMILES
   function calculateDescriptors(smiles) {
