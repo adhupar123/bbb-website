@@ -115,6 +115,19 @@
   try {
     RDKit = await window.initRDKitModule();
     log('RDKit loaded successfully:', !!RDKit);
+    log('RDKit methods available:', Object.keys(RDKit).filter(k => typeof RDKit[k] === 'function').slice(0, 10));
+    
+    // Test with a simple molecule
+    try {
+      const testMol = RDKit.get_mol('CCO');
+      if (testMol && testMol.is_valid()) {
+        const testDesc = JSON.parse(testMol.get_descriptors());
+        log('Test descriptors for CCO (ethanol):', testDesc);
+        testMol.delete();
+      }
+    } catch (e) {
+      log('Test molecule failed:', e);
+    }
     
     // Hide loading overlay only after successful load
     const loadingEl = document.getElementById('loading');
@@ -138,18 +151,34 @@
         return null;
       }
 
+      // Get descriptor object
       const descriptors = JSON.parse(mol.get_descriptors());
       
-      // Calculate aromatic rings
-      const aromaticRings = mol.get_substruct_matches(RDKit.get_qmol('c1ccccc1')).length;
+      // Calculate aromatic rings using SMARTS pattern matching
+      let aromaticRings = 0;
+      try {
+        const qmol = RDKit.get_qmol('c1ccccc1'); // benzene pattern
+        const matches = mol.get_substruct_matches(qmol);
+        aromaticRings = matches.length;
+        qmol.delete();
+      } catch (e) {
+        // If pattern matching fails, estimate from aromatic atoms
+        aromaticRings = Math.floor((descriptors.NumAromaticCarbocycles || 0) + (descriptors.NumAromaticHeterocycles || 0));
+      }
+      
+      // Get formal charge from descriptors
+      const formalCharge = descriptors.FormalCharge || 0;
+      
+      // Get heavy atom count
+      const heavyAtoms = descriptors.NumHeavyAtoms || descriptors.lipinskiHBA + descriptors.lipinskiHBD || 0;
       
       const result = {
         MolLogP: descriptors.CrippenClogP || 0,
         MolWt: descriptors.amw || 0,
         TPSA: descriptors.TPSA || 0,
-        FC: mol.get_total_formal_charge() || 0,
+        FC: formalCharge,
         Aromatic: aromaticRings,
-        Heavy: mol.get_num_heavy_atoms() || 0
+        Heavy: heavyAtoms
       };
       
       mol.delete();
