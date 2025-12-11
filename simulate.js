@@ -147,12 +147,16 @@
     try {
       const mol = RDKit.get_mol(smiles);
       if (!mol || !mol.is_valid()) {
-        log('Invalid molecule for SMILES:', smiles);
         return null;
       }
 
       // Get descriptor object
       const descriptors = JSON.parse(mol.get_descriptors());
+      
+      // Log first few to see what's available
+      if (Math.random() < 0.01) { // Log ~1% randomly to avoid spam
+        log('Sample descriptors:', Object.keys(descriptors).slice(0, 20));
+      }
       
       // Calculate aromatic rings using SMARTS pattern matching
       let aromaticRings = 0;
@@ -184,7 +188,7 @@
       mol.delete();
       return result;
     } catch (e) {
-      log('Error calculating descriptors for SMILES:', smiles, e);
+      log('Error calculating descriptors for SMILES:', smiles.substring(0, 50), e.message);
       return null;
     }
   }
