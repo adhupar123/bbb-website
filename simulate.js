@@ -1,7 +1,8 @@
-/* simulate.js (Updated)
+/* simulate.js (Updated with RDKit for SMILES descriptor calculation)
+ - Loads RDKit to compute molecular descriptors from SMILES
  - Robust TSV loader & header matching
  - In-browser OLS trained on rows with experimental logBB
- - Fallback coefficients (from About page) if OLS cannot be computed
+ - Fallback coefficients if OLS cannot be computed
  - Dropdown changes update sliders immediately
  - Two-compartment RK4 simulation for predicted & experimental LogBB
  - Plotly visualization
@@ -108,6 +109,49 @@
     return {t, Cb, Cbr};
   }
 
+  // -------- Wait for RDKit to load --------
+  log('Waiting for RDKit to initialize...');
+  await window.initRDKitModule();
+  const RDKit = window.RDKitModule;
+  log('RDKit loaded successfully');
+
+  // Hide loading overlay
+  const loadingEl = document.getElementById('loading');
+  if(loadingEl) loadingEl.style.display = 'none';
+
+  // Function to calculate descriptors from SMILES
+  function calculateDescriptors(smiles) {
+    if (!smiles || smiles === 'nan') return null;
+    
+    try {
+      const mol = RDKit.get_mol(smiles);
+      if (!mol || !mol.is_valid()) {
+        log('Invalid molecule for SMILES:', smiles);
+        return null;
+      }
+
+      const descriptors = JSON.parse(mol.get_descriptors());
+      
+      // Calculate aromatic rings
+      const aromaticRings = mol.get_substruct_matches(RDKit.get_qmol('c1ccccc1')).length;
+      
+      const result = {
+        MolLogP: descriptors.CrippenClogP || 0,
+        MolWt: descriptors.amw || 0,
+        TPSA: descriptors.TPSA || 0,
+        FC: mol.get_total_formal_charge() || 0,
+        Aromatic: aromaticRings,
+        Heavy: descriptors.lipinskiHBA + descriptors.lipinskiHBD || mol.get_num_heavy_atoms() || 0
+      };
+      
+      mol.delete();
+      return result;
+    } catch (e) {
+      log('Error calculating descriptors for SMILES:', smiles, e);
+      return null;
+    }
+  }
+
   // -------- UI references (IDs must match simulate.html) --------
   const ids = ['MolLogP','MolWt','TPSA','FC','Aromatic','Heavy'];
   const ui = {};
@@ -138,12 +182,11 @@
     if(!ui[id]) return;
     ui[id].addEventListener('input', () => {
       outputs[id].textContent = ui[id].value;
-      // update displayed predicted value continuously
-      const pred = updateLogBBDisplay(); // silent
+      updateLogBBDisplay();
     });
   });
 
-  // -------- load TSV and prepare data --------
+  // -------- load TSV and calculate descriptors --------
   let parsedRows = [];
   try {
     const raw = await fetchText('./B3DB_regression.tsv');
@@ -151,10 +194,9 @@
     const hdr = parsed.hdr;
     const rows = parsed.rows;
 
-    // flexible header matching
+    // Find columns
     function findCol(candidates){
       for(const c of candidates){
-        // exact
         const exact = hdr.find(h => h === c);
         if(exact) return exact;
       }
@@ -167,24 +209,31 @@
     }
 
     const col_name = findCol(['compound_name','compound','name']);
-    const col_MolLogP = findCol(['MolLogP','LogP','molLogP']);
-    const col_MolWt = findCol(['MolWt','MolWeight','MolecularWeight']);
-    const col_TPSA = findCol(['TPSA','TopologicalPolarSurfaceArea']);
-    const col_FC = findCol(['FC','FormalCharge','Formal_Charge']);
-    const col_Aromatic = findCol(['Aromatic Rings','Aromatic_Rings','Aromatic']);
-    const col_Heavy = findCol(['Heavy Atoms','Heavy_Atoms','HeavyAtoms']);
+    const col_smiles = findCol(['SMILES','smiles','Smiles']);
     const col_logBB = findCol(['logBB','LogBB','logBB_exp','logBB_experimental','log_bb']);
 
-    parsedRows = rows.map(r => ({
-      name: r[col_name] ?? r[Object.keys(r)[0]] ?? '',
-      MolLogP: toNum(r[col_MolLogP]),
-      MolWt:   toNum(r[col_MolWt]),
-      TPSA:    toNum(r[col_TPSA]),
-      FC:      toNum(r[col_FC]),
-      Aromatic:toNum(r[col_Aromatic]),
-      Heavy:   toNum(r[col_Heavy]),
-      logBB_exp: col_logBB ? toNum(r[col_logBB]) : NaN
-    }));
+    log('Processing', rows.length, 'compounds and calculating descriptors...');
+    
+    parsedRows = rows.map((r, idx) => {
+      const smiles = r[col_smiles] || '';
+      const descriptors = calculateDescriptors(smiles);
+      
+      if (idx < 5) log(`Row ${idx}: ${r[col_name]}, SMILES: ${smiles.substring(0,30)}...`, descriptors);
+      
+      return {
+        name: r[col_name] ?? r[Object.keys(r)[0]] ?? '',
+        smiles: smiles,
+        MolLogP: descriptors?.MolLogP ?? NaN,
+        MolWt: descriptors?.MolWt ?? NaN,
+        TPSA: descriptors?.TPSA ?? NaN,
+        FC: descriptors?.FC ?? NaN,
+        Aromatic: descriptors?.Aromatic ?? NaN,
+        Heavy: descriptors?.Heavy ?? NaN,
+        logBB_exp: col_logBB ? toNum(r[col_logBB]) : NaN
+      };
+    }).filter(r => r.name); // Keep only rows with names
+
+    log('Processed', parsedRows.length, 'compounds with descriptors');
   } catch (e) {
     log('Failed to load TSV:', e);
     document.getElementById('plot').innerHTML = `<div style="padding:12px;color:#900">Error: could not load B3DB_regression.tsv — check path and CORS in console.</div>`;
@@ -210,21 +259,22 @@
     y_train.push(r.logBB_exp);
   });
 
+  log('Training samples:', X_train.length);
+
   let beta = null;
   try {
-    if(X_train.length >= 6){
+    if(X_train.length >= 7){
       beta = ols(X_train, y_train);
       log('OLS coefficients:', beta);
     } else {
-      log('Not enough training rows (need >=6), found', X_train.length);
+      log('Not enough training rows (need >=7), found', X_train.length);
     }
   } catch(err){
     log('OLS failed, will use fallback coefficients. Error:', err);
     beta = null;
   }
 
-  // fallback coefficients (from About page equation) — intercept first:
-  // LogBB = 0.2407 + (-0.0115 × MolLogP) + (-0.0013 × MolWt) + (-0.0133 × TPSA) + (0.0172 × FC) + (-0.1323 × Aromatic) + (0.0512 × Heavy)
+  // fallback coefficients (from About page equation)
   const fallbackBeta = [0.2407, -0.0115, -0.0013, -0.0133, 0.0172, -0.1323, 0.0512];
 
   function predictLogBBFromFeatures(features){
@@ -240,33 +290,31 @@
   }
 
   function applyRowToSliders(r){
-  if(!r) return;
-  if(Number.isFinite(r.MolLogP)) {
-    ui.MolLogP.value = r.MolLogP;
-    ui.MolLogP.dispatchEvent(new Event('input'));
-  }
-  if(Number.isFinite(r.MolWt)) {
-    ui.MolWt.value = r.MolWt;
-    ui.MolWt.dispatchEvent(new Event('input'));
-  }
-  if(Number.isFinite(r.TPSA)) {
-    ui.TPSA.value = r.TPSA;
-    ui.TPSA.dispatchEvent(new Event('input'));
-  }
-  if(Number.isFinite(r.FC)) {
-    ui.FC.value = r.FC;
-    ui.FC.dispatchEvent(new Event('input'));
-  }
-  if(Number.isFinite(r.Aromatic)) {
-    ui.Aromatic.value = r.Aromatic;
-    ui.Aromatic.dispatchEvent(new Event('input'));
-  }
-  if(Number.isFinite(r.Heavy)) {
-    ui.Heavy.value = r.Heavy;
-    ui.Heavy.dispatchEvent(new Event('input'));
-  }
-  // Remove this line since dispatchEvent will trigger it:
-  // ids.forEach(id => outputs[id].textContent = ui[id].value);
+    if(!r) return;
+    if(Number.isFinite(r.MolLogP)) {
+      ui.MolLogP.value = r.MolLogP;
+      outputs.MolLogP.textContent = r.MolLogP.toFixed(2);
+    }
+    if(Number.isFinite(r.MolWt)) {
+      ui.MolWt.value = r.MolWt;
+      outputs.MolWt.textContent = r.MolWt.toFixed(1);
+    }
+    if(Number.isFinite(r.TPSA)) {
+      ui.TPSA.value = r.TPSA;
+      outputs.TPSA.textContent = r.TPSA.toFixed(1);
+    }
+    if(Number.isFinite(r.FC)) {
+      ui.FC.value = r.FC;
+      outputs.FC.textContent = r.FC;
+    }
+    if(Number.isFinite(r.Aromatic)) {
+      ui.Aromatic.value = r.Aromatic;
+      outputs.Aromatic.textContent = r.Aromatic;
+    }
+    if(Number.isFinite(r.Heavy)) {
+      ui.Heavy.value = r.Heavy;
+      outputs.Heavy.textContent = r.Heavy;
+    }
   }
 
   function updateLogBBDisplay(){
@@ -324,12 +372,6 @@
     updateLogBBDisplay();
     runSimulation();
   });
-
-  // slider inputs already update outputs and pred text via earlier listeners
-  ids.forEach(id => ui[id].addEventListener('input', () => {
-    // update displayed predicted value while user slides
-    updateLogBBDisplay();
-  }));
 
   runBtn.addEventListener('click', runSimulation);
   resetBtn.addEventListener('click', () => {
