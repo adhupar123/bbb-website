@@ -240,15 +240,33 @@
   }
 
   function applyRowToSliders(r){
-    if(!r) return;
-    if(Number.isFinite(r.MolLogP)) ui.MolLogP.value = r.MolLogP;
-    if(Number.isFinite(r.MolWt))   ui.MolWt.value   = r.MolWt;
-    if(Number.isFinite(r.TPSA))    ui.TPSA.value    = r.TPSA;
-    if(Number.isFinite(r.FC))      ui.FC.value      = r.FC;
-    if(Number.isFinite(r.Aromatic))ui.Aromatic.value= r.Aromatic;
-    if(Number.isFinite(r.Heavy))   ui.Heavy.value   = r.Heavy;
-    // update display outputs
-    ids.forEach(id => outputs[id].textContent = ui[id].value);
+  if(!r) return;
+  if(Number.isFinite(r.MolLogP)) {
+    ui.MolLogP.value = r.MolLogP;
+    ui.MolLogP.dispatchEvent(new Event('input'));
+  }
+  if(Number.isFinite(r.MolWt)) {
+    ui.MolWt.value = r.MolWt;
+    ui.MolWt.dispatchEvent(new Event('input'));
+  }
+  if(Number.isFinite(r.TPSA)) {
+    ui.TPSA.value = r.TPSA;
+    ui.TPSA.dispatchEvent(new Event('input'));
+  }
+  if(Number.isFinite(r.FC)) {
+    ui.FC.value = r.FC;
+    ui.FC.dispatchEvent(new Event('input'));
+  }
+  if(Number.isFinite(r.Aromatic)) {
+    ui.Aromatic.value = r.Aromatic;
+    ui.Aromatic.dispatchEvent(new Event('input'));
+  }
+  if(Number.isFinite(r.Heavy)) {
+    ui.Heavy.value = r.Heavy;
+    ui.Heavy.dispatchEvent(new Event('input'));
+  }
+  // Remove this line since dispatchEvent will trigger it:
+  // ids.forEach(id => outputs[id].textContent = ui[id].value);
   }
 
   function updateLogBBDisplay(){
