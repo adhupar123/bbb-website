@@ -1,4 +1,4 @@
-/* simulate.js (Updated with RDKit for SMILES descriptor calculation)
+/* simulate.js (Updated with RDKit for SMILES descriptor calculation + DEBUG MODE)
  - Loads RDKit to compute molecular descriptors from SMILES
  - Robust TSV loader & header matching
  - In-browser OLS trained on rows with experimental logBB
@@ -141,7 +141,7 @@
         TPSA: descriptors.TPSA || 0,
         FC: mol.get_total_formal_charge() || 0,
         Aromatic: aromaticRings,
-        Heavy: descriptors.lipinskiHBA + descriptors.lipinskiHBD || mol.get_num_heavy_atoms() || 0
+        Heavy: mol.get_num_heavy_atoms() || 0
       };
       
       mol.delete();
@@ -174,6 +174,12 @@
   const modelLogbbEl = document.getElementById('model_logbb');
   const expLogbbEl = document.getElementById('exp_logbb');
 
+  // DEBUG: Check if UI elements exist
+  log('UI elements check:');
+  ids.forEach(id => {
+    log(`  ${id}: slider=${!!ui[id]}, output=${!!outputs[id]}`);
+  });
+
   // ensure sliders show initial values
   ids.forEach(id => { if(ui[id]) outputs[id].textContent = ui[id].value; });
 
@@ -194,6 +200,8 @@
     const hdr = parsed.hdr;
     const rows = parsed.rows;
 
+    log('TSV Headers:', hdr);
+
     // Find columns
     function findCol(candidates){
       for(const c of candidates){
@@ -212,13 +220,20 @@
     const col_smiles = findCol(['SMILES','smiles','Smiles']);
     const col_logBB = findCol(['logBB','LogBB','logBB_exp','logBB_experimental','log_bb']);
 
+    log('Column mappings:', {col_name, col_smiles, col_logBB});
     log('Processing', rows.length, 'compounds and calculating descriptors...');
     
     parsedRows = rows.map((r, idx) => {
       const smiles = r[col_smiles] || '';
       const descriptors = calculateDescriptors(smiles);
       
-      if (idx < 5) log(`Row ${idx}: ${r[col_name]}, SMILES: ${smiles.substring(0,30)}...`, descriptors);
+      if (idx < 3) {
+        log(`Row ${idx}:`, {
+          name: r[col_name],
+          smiles: smiles.substring(0,50) + '...',
+          descriptors: descriptors
+        });
+      }
       
       return {
         name: r[col_name] ?? r[Object.keys(r)[0]] ?? '',
@@ -234,6 +249,7 @@
     }).filter(r => r.name); // Keep only rows with names
 
     log('Processed', parsedRows.length, 'compounds with descriptors');
+    log('Sample row:', parsedRows[0]);
   } catch (e) {
     log('Failed to load TSV:', e);
     document.getElementById('plot').innerHTML = `<div style="padding:12px;color:#900">Error: could not load B3DB_regression.tsv — check path and CORS in console.</div>`;
@@ -248,6 +264,8 @@
   placeholderOpt.textContent = '-- Select drug --';
   drugSel.appendChild(placeholderOpt);
   names.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; drugSel.appendChild(o); });
+
+  log('Populated dropdown with', names.length, 'drugs');
 
   // Prepare regression training: only rows with numeric features AND experimental logBB
   const X_train = [];
@@ -290,7 +308,31 @@
   }
 
   function applyRowToSliders(r){
-    if(!r) return;
+    if(!r) {
+      log('applyRowToSliders: row is null/undefined');
+      return;
+    }
+    
+    log('applyRowToSliders called with:', {
+      name: r.name,
+      MolLogP: r.MolLogP,
+      MolWt: r.MolWt,
+      TPSA: r.TPSA,
+      FC: r.FC,
+      Aromatic: r.Aromatic,
+      Heavy: r.Heavy
+    });
+    
+    // Store old values for comparison
+    const oldValues = {
+      MolLogP: ui.MolLogP.value,
+      MolWt: ui.MolWt.value,
+      TPSA: ui.TPSA.value,
+      FC: ui.FC.value,
+      Aromatic: ui.Aromatic.value,
+      Heavy: ui.Heavy.value
+    };
+    
     if(Number.isFinite(r.MolLogP)) {
       ui.MolLogP.value = r.MolLogP;
       outputs.MolLogP.textContent = r.MolLogP.toFixed(2);
@@ -305,16 +347,25 @@
     }
     if(Number.isFinite(r.FC)) {
       ui.FC.value = r.FC;
-      outputs.FC.textContent = r.FC;
+      outputs.FC.textContent = r.FC.toString();
     }
     if(Number.isFinite(r.Aromatic)) {
       ui.Aromatic.value = r.Aromatic;
-      outputs.Aromatic.textContent = r.Aromatic;
+      outputs.Aromatic.textContent = r.Aromatic.toString();
     }
     if(Number.isFinite(r.Heavy)) {
       ui.Heavy.value = r.Heavy;
-      outputs.Heavy.textContent = r.Heavy;
+      outputs.Heavy.textContent = r.Heavy.toString();
     }
+    
+    // Log new values after update
+    log('Slider values AFTER update:');
+    log('  MolLogP:', oldValues.MolLogP, '->', ui.MolLogP.value);
+    log('  MolWt:', oldValues.MolWt, '->', ui.MolWt.value);
+    log('  TPSA:', oldValues.TPSA, '->', ui.TPSA.value);
+    log('  FC:', oldValues.FC, '->', ui.FC.value);
+    log('  Aromatic:', oldValues.Aromatic, '->', ui.Aromatic.value);
+    log('  Heavy:', oldValues.Heavy, '->', ui.Heavy.value);
   }
 
   function updateLogBBDisplay(){
@@ -367,14 +418,21 @@
 
   // events: dropdown -> update sliders & run
   drugSel.addEventListener('change', () => {
+    log('=== DROPDOWN CHANGED to:', drugSel.value, '===');
     const r = findRowByName(drugSel.value);
+    log('Found row:', r);
     if(r) applyRowToSliders(r);
     updateLogBBDisplay();
     runSimulation();
   });
 
-  runBtn.addEventListener('click', runSimulation);
+  runBtn.addEventListener('click', () => {
+    log('Run button clicked');
+    runSimulation();
+  });
+  
   resetBtn.addEventListener('click', () => {
+    log('Reset button clicked');
     const r = findRowByName(drugSel.value);
     if(r) applyRowToSliders(r);
     updateLogBBDisplay();
@@ -382,6 +440,7 @@
 
   // initialize with first drug if present
   if(names.length > 0){
+    log('Initializing with first drug:', names[0]);
     drugSel.value = names[0];
     const r = findRowByName(names[0]);
     if(r) applyRowToSliders(r);
