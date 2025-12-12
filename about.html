@@ -388,7 +388,19 @@
                 <p class="figure-caption">Plot displaying the direction and magnitude of descriptor coefficients from the MLR model.</p>
             </div>
         </div>
-        
+
+        <div class="section">
+            <h2>Logistic Regression</h2>
+            <p>While our logistic regression model had an accuracy of 70%, it only produces binary values: whether or not a drug crosses the BBB. Thus, a confusion matrix was created to visually compare how the logistic regression predictions compared to the actual data. </p>
+            
+            <div class="figure-container">
+                <img src="Confusion Matrix.png" alt="Confusion Matrix">
+                <p class="figure-caption"> Condusion Matrix based on LogBB values greater than or less than 0, to indicate BBB permability.</p>
+            </div>
+            
+            </ul>
+        </div>
+
         <div class="section">
             <h2>Gradient Boosting</h2>
             
@@ -407,19 +419,7 @@
                 <p class="figure-caption">Feature importance plot showing which descriptors are most influential in error reduction.</p>
             </div>
         </div>
-
-        <div class="section">
-            <h2>Logistic Regression</h2>
-            <p>While our logistic regression model had an accuracy of 70%, it was only able to produce binary values, which is useful for predicting membrane permability, but this model is incapable of producing predictive LogBB values. </p>
-            <p>Thus, a confusion matrix was produced in order to visually compare how our predictions compared to the actual data. </p>
-            
-            <div class="figure-container">
-                <img src="Confusion Matrix.png" alt="Confusion Matrix">
-                <p class="figure-caption"> Condusion Matrix based on LogBB values greater than or less than 0, to indicate BBB permability.</p>
-            </div>
-            
-            </ul>
-        </div>
+        
     </div>
     
     <footer>
