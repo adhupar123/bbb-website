@@ -376,14 +376,14 @@
         </div>
         
         <div class="section">
-            <h2>The Predictive Equation</h2>
-            <p>Based on our multiple linear regression analysis, we developed the following equation to predict LogBB:</p>
+            <h2>Multiple Linear Regression</h2>
+            <p>As mentioned before, we conducted multiple linear regression, where our coefficients were calculated and utilized in the follwoing equation.:</p>
             
             <div class="equation">
                 <strong>LogBB</strong> = 0.2407 + (-0.0115 × MolLogP) + (-0.0013 × MolWt) + (-0.0133 × TPSA) + (0.0172 × FC) + (-0.1323 × Aromatic Rings) + (0.0512 × Heavy Atoms)
             </div>
             
-            <p>Where a positive LogBB value (> 0) indicates the drug can effectively cross the blood-brain barrier. The brain-to-blood concentration ratio can be calculated as:</p>
+            <p>While this equation utilizes coefficients that were trained with machine learning methods, our original coefficients looke more like the following, where aromatic rings had more of an impact on </p>
             
             <div class="equation">
                 K = 10<sup>LogBB</sup>
@@ -396,15 +396,15 @@
         </div>
         
         <div class="section">
-            <h2>Key Findings</h2>
+            <h2>Gradient Boosting</h2>
             
             <div class="highlight-box">
-                <h3>🔍 Most Important Factors</h3>
-                <p><strong>TPSA</strong> showed the strongest correlation with BBB permeability (-0.53), indicating that polar surface area is the most critical factor. Drugs with TPSA < 90 Ų generally show better BBB penetration.</p>
+                <h3>🔍 Feature Importance Scores</h3>
+                <p><strong>TPSA</strong> Gradient Boosting works by utilizing tree branching algorithms, and performing multiple different trials. Our descriptors were averaged across all trials, to show which ones reduced error across all the trials. TPSA was found to reduce Error the most.</p>
                 
-                <p><strong>Lipophilicity (MolLogP)</strong> showed a positive correlation (+0.28), confirming that more lipophilic drugs cross the BBB more readily, though excessive lipophilicity can cause other issues.</p>
+                <p><strong>FC</strong> FC, on the other hand, was found to reduce error the least across all trials.</p>
                 
-                <p><strong>Aromatic Rings</strong> had a negative coefficient (-0.13), suggesting that reducing aromatic ring count can improve BBB permeability while maintaining drug efficacy.</p>
+                <p><strong>All Others</strong> The rest of our descriptors reduced more error than FC, but not nearly as much as TPSA was found to. </p>
             </div>
             
             <div class="figure-container">
@@ -412,14 +412,6 @@
                 <p class="figure-caption">Error reduction from Gradient Boosting model showing which descriptors are most influential in predictions.</p>
             </div>
             
-            <h3>Implications for Drug Design</h3>
-            <p>Our findings suggest that for improved BBB penetration, drug candidates should be designed with:</p>
-            <ul style="margin-left: 40px; color: #555;">
-                <li>Lower topological polar surface area (TPSA < 90 Ų)</li>
-                <li>Moderate lipophilicity (MolLogP between 1-3)</li>
-                <li>Molecular weight under 500 Da</li>
-                <li>Minimal formal charge (neutral molecules preferred)</li>
-                <li>Reduced number of aromatic rings</li>
             </ul>
         </div>
     </div>
